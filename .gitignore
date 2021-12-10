@@ -1,0 +1,9 @@
+/build/
+/dev/
+/data/
+/utils/venv/
+/utils/__pycache__/
+.idea/
+
+*/include/music_data.h
+*/build/
