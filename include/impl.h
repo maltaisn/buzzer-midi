@@ -18,14 +18,28 @@
 #ifndef IMPL_H
 #define IMPL_H
 
-#if !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega3208__)
-#error "Unsupported target"
-#endif
+#include <stdint.h>
+#include <music.h>
 
+/**
+ * Setup registers for implementation.
+ */
 void impl_setup(void);
 
+/**
+ * Stop playing sound and reset implementation state.
+ */
 void impl_reset(void);
 
+/**
+ * Callback from main program to implementation to update the
+ * note currently being played on a track.
+ * If track->note is NO_NOTE, the implementation should stop playing the previous note.
+ * Otherwise, the implementation should start (or continue) playing the current note.
+ *
+ * @param track The track with a note changed.
+ * @param track_num The number of the track (1 - (MAX_TRACKS-1)).
+ */
 void impl_play_note(const track_t *track, uint8_t track_num);
 
 #endif //IMPL_H

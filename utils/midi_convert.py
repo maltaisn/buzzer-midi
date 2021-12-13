@@ -103,13 +103,13 @@ parser.add_argument("-w", "--wav", type=str,
                     dest="wav_file", default=None)
 
 
-def bpm_to_tone_us(bpm: float) -> float:
-    """Convert BPM tempo to tone period in microseconds."""
+def bpm_to_beat_us(bpm: float) -> float:
+    """Convert BPM tempo to beat period in microseconds."""
     return 6e7 / bpm
 
 
-def tone_us_to_bpm(us: float) -> float:
-    """Convert BPM tempo to tone period in microseconds."""
+def beat_us_to_bpm(us: float) -> float:
+    """Convert BPM tempo to beat period in microseconds."""
     return 6e7 / us
 
 
@@ -120,7 +120,7 @@ def format_midi_note(note: int) -> str:
 
 def write_c_header(file: TextIO, data: bytes, arr_name: str):
     """Write C header file containing data array with a name."""
-    file.write('#include "music.h"\n\n')
+    file.write('#include "defs.h"\n\n')
     file.write(f"static _FLASH uint8_t {arr_name}[] = {{\n")
     for i, b in enumerate(data):
         if i % 12 == 0:
@@ -166,12 +166,15 @@ def create_config(args: argparse.Namespace) -> Config:
     logger = Logger(log_file, log_level)
 
     # tempo
-    tempo = args.tempo
-    tempo_overriden = args.tempo is not None
-    tempo_min = math.ceil(bpm_to_tone_us(BuzzerMusic.TEMPO_MIN))
-    tempo_max = math.floor(bpm_to_tone_us(BuzzerMusic.TEMPO_MAX))
-    if tempo_overriden and not (tempo_min <= tempo <= tempo_max):
-        raise ValueError(f"Tempo override out of bounds (between {tempo_min} and {tempo_max} BPM)")
+    tempo_us = 0
+    tempo_bpm = args.tempo
+    tempo_overriden = tempo_bpm is not None
+    if tempo_overriden:
+        tempo_min = math.ceil(beat_us_to_bpm(BuzzerMusic.TEMPO_MIN))
+        tempo_max = math.floor(beat_us_to_bpm(BuzzerMusic.TEMPO_MAX))
+        if not (tempo_min <= tempo_bpm <= tempo_max):
+            raise ValueError(f"tempo override out of bounds (between {tempo_min} and {tempo_max} BPM)")
+        tempo_us = bpm_to_beat_us(tempo_bpm)
 
     output_format = OutputFormat.HEX_HEADER if args.header_name else OutputFormat.BINARY
 
@@ -189,7 +192,7 @@ def create_config(args: argparse.Namespace) -> Config:
         elif len(parts) != 1:
             raise ValueError("invalid WAV file sample width specification")
 
-    return Config(args.input_file, args.output_file, logger, args.track_strategy, tempo,
+    return Config(args.input_file, args.output_file, logger, args.track_strategy, tempo_us,
                   tempo_overriden, args.octave_adjust, args.merge_midi_tracks, output_format,
                   args.header_name, wav_file, wav_width)
 
@@ -269,22 +272,22 @@ class MidiConverter:
         return event_map
 
     def _get_overall_tempo(self, event_map: MidiEventMap, tempo_map: MidiTempoMap) -> float:
-        """Get overall tempo for buzzer music in us/tone."""
+        """Get overall tempo for buzzer music in us/beat."""
         if self.config.tempo_overriden:
             tempo = self.config.tempo
             self.logger.info(f"tempo map built, using tempo override of "
-                             f"{tone_us_to_bpm(tempo):.0f} BPM")
+                             f"{beat_us_to_bpm(tempo):.0f} BPM")
         else:
             # get map of tempos in MIDI by time (MIDI clock)
             midi_duration = max(event_map.keys())
             tempo = self._get_average_tempo(tempo_map, midi_duration)
             if len(tempo_map) > 2:
                 self.logger.warn("file has variable tempo, average tempo will be used.")
-            self.logger.info(f"tempo map built, average tempo is {tone_us_to_bpm(tempo):.0f} BPM")
+            self.logger.info(f"tempo map built, average tempo is {beat_us_to_bpm(tempo):.0f} BPM")
         return tempo
 
     def _get_tempo_map(self, event_map: MidiEventMap) -> MidiTempoMap:
-        """Build MIDI tempo map (tempo in us/tone by MIDI time)."""
+        """Build MIDI tempo map (tempo in us/beat by MIDI time)."""
         tempo_map: MidiTempoMap = {0: 500000}
         for time, events in event_map.items():
             tempo_event = next((e[1] for e in events if e[1].type == "set_tempo"), None)
@@ -401,17 +404,17 @@ class MidiConverter:
             self._abort()
 
     def _get_encoded_tempo(self, tempo: float) -> int:
-        """Encode tempo from us/tone to byte used by buzzer music format."""
+        """Encode tempo from us/beat to byte used by buzzer music format."""
         if tempo < BuzzerMusic.TEMPO_MAX:
-            self.logger.warn(f"tempo value is too high to be encoded ({tone_us_to_bpm(tempo)}), "
+            self.logger.warn(f"tempo value is too high to be encoded ({beat_us_to_bpm(tempo)}), "
                              f"consider overriding it")
             return 0
         elif tempo > BuzzerMusic.TEMPO_MIN:
-            self.logger.warn(f"tempo value is too low to be encoded ({bpm_to_tone_us(tempo)}), "
+            self.logger.warn(f"tempo value is too low to be encoded ({bpm_to_beat_us(tempo)}), "
                              f"consider overriding it")
             return 255
         else:
-            return BuzzerMusic.encode_tone_us_tempo(tempo)
+            return BuzzerMusic.encode_beat_us_tempo(tempo)
 
     def _create_buzzer_music(self, tempo: float, frames_notes: FramesNotes) -> BuzzerMusic:
         """Create buzzer music from frames notes using specified strategy."""

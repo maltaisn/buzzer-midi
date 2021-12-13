@@ -294,5 +294,4 @@ normal_strategies: List[Tuple[str, TrackStrategy]] = [
     ("closest_avg", ClosestAverageTrackStrategy()),
     ("first_fit", FirstFitTrackStrategy(False)),
     ("first_fit_pref", FirstFitTrackStrategy(True)),
-    ("random", RandomTrackStrategy()),
 ]

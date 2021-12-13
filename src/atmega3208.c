@@ -25,8 +25,11 @@
 // A channel is "on" for half of the period of the note it's playing.
 // The current on/off state of a channel is kept in a variable.
 // The TCB timers are used to toggle that state and update the PWM duty cycle
-// during their interrupt. The buzzer acts as a low-pass filter so the
-// PWM creates something ressembling a 2-bit DAC.
+// during their interrupt.
+//
+// The buzzer acts as a low-pass filter so the 50 kHz PWM creates something
+// ressembling a 2-bit DAC, with 4 levels of output. The output level is the
+// sum of all channel levels at the current time.
 //
 // It would technically be possible to have up to six channels using the
 // same timer multiplexing trick as in the ATmega328P implementation, however
@@ -38,6 +41,7 @@
 // - TCB0, TCB1, TCB2 for 3 channels.
 // - 1 event system channel if H-bridge output is enabled.
 // - About 150k cycles per second for the interrupts (1.5% usage at 10 MHz).
+//   (counting 50 cycles per interrupt, x3, playing a 500 Hz note).
 
 #ifdef __AVR_ATmega3208__
 
@@ -45,22 +49,16 @@
 #include <avr/interrupt.h>
 #include <music.h>
 
-#define NO_NOTE_COUNT 0xffff
-
-#define TRACK0_ON (1 << 0)
-#define TRACK1_ON (1 << 1)
-#define TRACK2_ON (1 << 2)
-
 // different volume levels are supported by varying the PWM duty cycle range
 // volume is not changeable at runtime in the current implementation but this isn't an issue.
 #define VOLUME_LEVEL 2
 
-// whether to output a pair of differential signals to drive a H-bridge.
+// Whether to output a pair of differential signals to drive a H-bridge.
 // PA3 is the normal output and PA2 is the inverted input.
 // if disabled, only PA3 is output.
 #define HBRIDGE_OUTPUT 1
 
-// as a whole this register indicates an index in the PWM_LEVELS array.
+// As a whole this register indicates an index in the PWM_LEVELS array.
 // - 0:2 indicate the current level of the output for a track
 // - 3:4 indicate the current volume level (0-3)
 // to slightly reduce interrupt latency, a general purpose I/O register is used
@@ -80,6 +78,7 @@ static uint8_t PWM_LEVELS[] = {
 // Timer counts for TCB channel timers, for each playable note.
 // Counts are calculated using the following formula:
 //   [count] = round([f_cpu] / [prescaler] / [note frequency] / 2) - 1
+// Maximum error should be less than 0.1% of a semitone.
 static uint16_t TIMER_NOTES[] = {
     38222, 36076, 34051, 32140, 30336, 28634, 27026, 25510, 24078, 22726, 21451, 20247,
     19110, 18038, 17025, 16070, 15168, 14316, 13513, 12754, 12038, 11363, 10725, 10123,
@@ -95,13 +94,13 @@ void impl_setup(void) {
 
     VPORTA.DIR = PIN2_bm | PIN3_bm;
 
-    // Timer A: prescaler 4, split mode, single slope PWM on compare channel 3.
+    // Timer A: prescaler 2, split mode, single slope PWM on compare channel 3.
     // PWM is output on PA3 for buzzer. Only high timer is used, low timer is unused.
     TCA0.SPLIT.CTRLD = TCA_SPLIT_SPLITM_bm;
     TCA0.SPLIT.HPER = PWM_LEVELS[sizeof PWM_LEVELS - 1];
     TCA0.SPLIT.HCMP0 = 0;
     TCA0.SPLIT.CTRLB = TCA_SPLIT_HCMP0EN_bm;
-    TCA0.SPLIT.CTRLA = TCA_SPLIT_CLKSEL_DIV2_gc | TCA_SPLIT_ENABLE_bm;
+    TCA0.SPLIT.CTRLA = TCA_SPLIT_CLKSEL_DIV8_gc | TCA_SPLIT_ENABLE_bm;
 
     // Timers B: used for each of the 3 music tracks. prescaler = 2, periodic interrupt mode.
     TCB0.CTRLA = TCB_CLKSEL_CLKDIV2_gc;
@@ -151,7 +150,7 @@ void impl_play_note(const track_t* track, uint8_t track_num) {
 
 ISR(TCB0_INT_vect) {
     uint8_t level = out_level;
-    level ^= TRACK0_ON;
+    level ^= 1 << 0;
     TCA0.SPLIT.HCMP0 = PWM_LEVELS[level];
     out_level = level;
     TCB0.INTFLAGS = TCB_CAPT_bm;
@@ -159,7 +158,7 @@ ISR(TCB0_INT_vect) {
 
 ISR(TCB1_INT_vect) {
     uint8_t level = out_level;
-    level ^= TRACK1_ON;
+    level ^= 1 << 1;
     TCA0.SPLIT.HCMP0 = PWM_LEVELS[level];
     out_level = level;
     TCB1.INTFLAGS = TCB_CAPT_bm;
@@ -167,7 +166,7 @@ ISR(TCB1_INT_vect) {
 
 ISR(TCB2_INT_vect) {
     uint8_t level = out_level;
-    level ^= TRACK2_ON;
+    level ^= 1 << 2;
     TCA0.SPLIT.HCMP0 = PWM_LEVELS[level];
     out_level = level;
     TCB2.INTFLAGS = TCB_CAPT_bm;

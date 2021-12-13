@@ -17,23 +17,39 @@
 #include <music.h>
 #include <music_data.h>
 #include <impl.h>
+#include <util/delay.h>
 
-#define LOOP
+#ifndef LOOP
+// Whether to loop the music data playback indefinitely.
+#define LOOP true
+#endif
+
+// Adjustment by 256 us increments to account for time spent
+// reading new note data after each 1/32nd of a beat.
+// Alternatively, music_loop can be called from a timer interrupt
+// with the appropriate period (256 us * music_state.tempo).
+#define TEMPO_ADJUST -1
 
 int main() {
+    // setup registers for implementation
     impl_setup();
 
-#ifdef LOOP
+    // play music in a loop
     do {
-#endif
-    static music_t music_state;
-    music_init(music_data, &music_state);
-    impl_reset();
-    while (music_loop(&music_state, 0));
-#ifdef LOOP
-    } while (true);
-#endif
+        // initialize music state
+        static music_t music_state;
+        music_init(music_data, &music_state);
+        impl_reset();
 
-    for (;;);
+        // play all notes
+        while (music_loop(&music_state)) {
+            // wait for roughly 1/32nd of a beat, with adjustment
+            uint8_t delay = music_state.tempo + TEMPO_ADJUST;
+            while (delay > 0) {
+                _delay_us(256);
+                --delay;
+            }
+        }
+    } while (LOOP);
 }
 

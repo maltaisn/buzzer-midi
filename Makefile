@@ -28,7 +28,7 @@ AVRDUDE := avrdude
 
 CFLAGS += -Wall -g -std=gnu11 -mmcu=$(MCU) -DF_CPU=$(F_CPU) -Os -I$(INCLUDE_DIR) \
 		 -ffunction-sections -fdata-sections -flto $(addprefix -D,$(DEFINES))
-LDFLAGS = -Wl,--gc-sections
+LDFLAGS = -Wl,--gc-sections -Wl,--print-memory-usage
 
 AVRDUDE_MCU = $(MCU)
 AVRDUDE_PORT := /dev/ttyUSB0
@@ -54,6 +54,7 @@ MAIN_TARGET := $(BUILD_DIR)/$(BUILD_TARGET)
 all: $(MAIN_TARGET).hex
 
 $(BUILD_DIR)/%.o: %.c
+$(BUILD_DIR)/%.o: %.c Makefile
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -62,7 +63,6 @@ $(BUILD_DIR)/%.o: %.c
 
 %.hex: %.elf
 	$(OBJCOPY) -O ihex $< $@
-	$(MAKE) size
 
 disasm: $(BUILD_DIR)/$(BUILD_TARGET).elf
 	$(OBJDUMP) -D $< > $(BUILD_DIR)/$(BUILD_TARGET).S

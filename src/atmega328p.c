@@ -14,25 +14,37 @@
  * limitations under the License.
  */
 
-// Output notes from six different tracks at the same time using
+// ==== 6 channels on 6 buzzers implementation for ATmega3208 ====
+//
+// Output notes from six different channels on six buzzers, using
 // each timer (timer0, timer1, timer2) for two tracks.
 // Output is done on port D (D2, D3, D4, D5, D6 & D7).
+//
+// The timers have different prescalers to widen the range of playable notes.
+// - Timer 0: B2 to C#7 (channels 0 & 1)
+// - Timer 1: C2 to C8 (channels 2 & 3)
+// - Timer 2: B3 to C8 (channels 4 & 5)
+//
+// Resources used:
+// - Timer0, timer1 & timer2
+// - About 420k cycles per second for the interrupts (2.6% usage at 16 MHz)
+//   (couting 70 cycles per interrupt, x6, playing a 500 Hz note)
 
 #ifdef __AVR_ATmega328P__
 
+#include <music.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-
-#include <music.h>
 #include <util/atomic.h>
 
 #define NO_NOTE_COUNT 0xff
 
-// this array contains timer counts to play each note.
-// the same array is used for all timers, but with different offsets, since timers
+// This array contains timer counts to play each note.
+// The same array is used for all timers, but with different offsets, since timers
 // only differ by their prescaler.
 // timer counts are calculated using the following formula:
 //   [count] = round([f_cpu] / [prescaler] / [note frequency] / 2) - 1
+// Maximum error is around 25% of a semitone for high pitch notes, 5-10% for lower pitch notes.
 _FLASH uint16_t TIMER_NOTES[] = {
     1910, 1803, 1702, 1606, 1516, 1431, 1350, 1275, 1203, 1135, 1072, 1011,
     955, 901, 850, 803, 757, 715, 675, 637, 601, 567, 535, 505,
@@ -104,6 +116,9 @@ void impl_setup(void) {
 
 void impl_reset(void) {
     notes_on = 0;
+    OCR0A = NO_NOTE_COUNT;
+    OCR1A = NO_NOTE_COUNT;
+    OCR2A = NO_NOTE_COUNT;
 }
 
 void impl_play_note(const track_t* track, uint8_t track_num) {
@@ -182,11 +197,7 @@ void impl_play_note(const track_t* track, uint8_t track_num) {
 // latency too much (this is particularly true for timer1, for which
 // the prescaler is lower and the latency is naturally higher due to
 // dealing with 16-bit data). Assembly output should be checked if a
-// change is made to ensure this. Notable optimizations here are
-// using a global register (r4) for notes_on, caching timer_cntx to
-// avoid multiple RAM reads, and making sure to use constructs which
-// result in less instructions (e.g. PIND = ... results in 2 instructions
-// while PIND |= ... results in a single SBI instruction!).
+// change is made to ensure this.
 
 // Also notice that the track counts are not always set to the note
 // count, but sometimes have a TRACKn_ADJUST subtracted.

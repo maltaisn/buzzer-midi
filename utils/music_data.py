@@ -22,13 +22,13 @@ FramesNotes = List[List[List[int]]]
 class BuzzerNote:
     # note as encoded in buzzer busic, C2 is 0, B7 is 71
     note: int
-    # duration, 0-MAX_DURATION (0 being 1/32th of a beat)
+    # duration, 0-MAX_DURATION (0 being 1/32nd of a beat)
     duration: int
 
     NONE = 0xff
     MAX_DURATION = 0x7fff
 
-    # minimum note resolution for buzzer music system (1/32th of a beat).
+    # minimum note resolution for buzzer music system (1/32nd of a beat).
     TIMEFRAME_RESOLUTION = 32
 
     def encode(self) -> bytearray:
@@ -119,8 +119,8 @@ class BuzzerMusic:
     tracks: List[BuzzerTrack] = field(default_factory=list)
 
     # encodeable tempo bounds
-    TEMPO_MIN = round(256.5 * 8200)
-    TEMPO_MAX = round(1.5 * 8200)
+    TEMPO_MIN = round(256 * 8192)
+    TEMPO_MAX = round(1 * 8192)
 
     def encode(self) -> bytearray:
         if len(set(t.number for t in self.tracks)) != len(self.tracks):
@@ -139,5 +139,5 @@ class BuzzerMusic:
         return b
 
     @staticmethod
-    def encode_tone_us_tempo(us: float) -> int:
-        return round(us / 8200) - 1
+    def encode_beat_us_tempo(us: float) -> int:
+        return round(us / 8192) - 1

@@ -16,12 +16,12 @@
 
 #include <music.h>
 #include <impl.h>
-
 #include <stdbool.h>
 
-#define TRACK_POS_END 0
-
-static void track_seek_note(track_t *track) {
+/**
+ * Read the next note in track data and set it as current note.
+ */
+static inline void track_seek_note(track_t *track) {
     if (track->track_pos != TRACK_POS_END) {
         track->note = track->track_pos[0];
         if (track->note == TRACK_END) {
@@ -44,7 +44,6 @@ static void track_seek_note(track_t *track) {
 }
 
 void music_init(_FLASH uint8_t* music_data, music_t* state) {
-    // initialize music state
     state->music_data = music_data;
     state->tempo = *music_data++;
     _FLASH uint8_t* track_pos = music_data;
@@ -61,14 +60,13 @@ void music_init(_FLASH uint8_t* music_data, music_t* state) {
     }
 }
 
-bool music_loop(music_t *state, uint16_t adjust) {
-    // update current note in all tracks
+bool music_loop(music_t *state) {
     bool track_playing = false;
     for (int i = 0; i < MAX_TRACKS; ++i) {
         track_t *track = &state->tracks[i];
         if (track->track_pos != TRACK_POS_END) {
             if (track->note_duration == 0) {
-                // note ended
+                // note ended, go to next note
                 track_seek_note(track);
                 impl_play_note(track, i);
             } else {
@@ -77,15 +75,5 @@ bool music_loop(music_t *state, uint16_t adjust) {
             track_playing = true;
         }
     }
-
-    if (track_playing) {
-        // wait for roughly 1/32th of a tone, with adjustment
-        uint8_t delay = state->tempo - adjust;
-        while (delay > 0) {
-            _delay_us(256);
-            --delay;
-        }
-    }
-
     return track_playing;
 }
