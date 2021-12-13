@@ -30,12 +30,13 @@
 #define TRACK_END 0xfe
 #define NO_NOTE 0xff
 
-#ifdef __CLION_IDE_
-#define __flash
-#endif
+#if defined(__AVR_ATmega328P__) && !defined(__CLION_IDE_)
 #define _FLASH const __flash
-
-extern _FLASH uint16_t TIMER_NOTES[];
+#else
+// on ATmega3208, flash is memory mapped and all const are put in flash automatically.
+// using __flash is counterproductive since it results in 3 cycles LPM vs 2 cycles LD...
+#define _FLASH const
+#endif
 
 typedef struct {
     // current track pos in music data array

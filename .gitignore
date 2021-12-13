@@ -7,3 +7,6 @@
 
 */include/music_data.h
 */build/
+
+*.wav
+*.mid

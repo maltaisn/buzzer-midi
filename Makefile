@@ -4,12 +4,14 @@ ifeq ($(TARGET),)
 endif
 
 ifeq ($(TARGET),atmega328p)
-    MCU = atmega328p
+    MCU := atmega328p
     F_CPU := 16000000
+	AVRDUDE_FLAGS += -c arduino
 else ifeq ($(TARGET),atmega3208)
-    MCU = atmega3208
+    MCU := atmega3208
     F_CPU := 10000000
     CFLAGS += -B$(ATMEGA_TOOLCHAIN_DIR)/gcc/dev/$(MCU) -I$(ATMEGA_TOOLCHAIN_DIR)/include
+	AVRDUDE_FLAGS += -c jtag2updi
 endif
 
 BUILD_DIR := build
@@ -31,7 +33,7 @@ LDFLAGS = -Wl,--gc-sections
 AVRDUDE_MCU = $(MCU)
 AVRDUDE_PORT := /dev/ttyUSB0
 AVRDUDE_BAUD := 57600
-AVRDUDE_FLAGS := -v -p $(AVRDUDE_MCU) -c arduino -P $(AVRDUDE_PORT) -b $(AVRDUDE_BAUD) -D
+AVRDUDE_FLAGS += -v -p $(AVRDUDE_MCU) -P $(AVRDUDE_PORT) -b $(AVRDUDE_BAUD)
 AVRDUDE_FLASH := -U flash:w:build/main.hex
 
 DEPFLAGS = -MT $@ -MMD -MP -MF $(BUILD_DIR)/$*.d
@@ -63,7 +65,7 @@ $(BUILD_DIR)/%.o: %.c
 	$(MAKE) size
 
 disasm: $(BUILD_DIR)/$(BUILD_TARGET).elf
-	$(OBJDUMP) -d $< > $(BUILD_DIR)/$(BUILD_TARGET).S
+	$(OBJDUMP) -D $< > $(BUILD_DIR)/$(BUILD_TARGET).S
 
 size: $(MAIN_TARGET).elf
 	$(OBJDUMP) -Pmem-usage $^

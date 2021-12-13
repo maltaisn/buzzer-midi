@@ -19,7 +19,7 @@
 
 #include <stdbool.h>
 
-#define TRACK_POS_END ((_FLASH uint8_t*) 0)
+#define TRACK_POS_END 0
 
 static void track_seek_note(track_t *track) {
     if (track->track_pos != TRACK_POS_END) {

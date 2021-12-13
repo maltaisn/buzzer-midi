@@ -61,20 +61,20 @@ class BuzzerTrack:
     # ranges of notes that can be encoded by each track number
     # limitations are due to timer periods and prescaler.
     # (see notes.xlsx)
-    TRACK_RANGES = [
-        range(11, 62),  # B2 to C#7
-        range(11, 62),
-        range(0, 73),  # C2 to C8
-        range(0, 73),
-        # range(23, 73),  # B3 to C8
-        # range(23, 73),
-    ]
-
     # TRACK_RANGES = [
+    #     range(11, 62),  # B2 to C#7
+    #     range(11, 62),
+    #     range(0, 73),  # C2 to C8
     #     range(0, 73),
-    #     range(0, 73),
-    #     range(0, 73),
+    #     # range(23, 73),  # B3 to C8
+    #     # range(23, 73),
     # ]
+
+    TRACK_RANGES = [
+        range(0, 73),
+        range(0, 73),
+        range(0, 73),
+    ]
 
     MAX_TRACKS = len(TRACK_RANGES)  # number of tracks available in system
 
