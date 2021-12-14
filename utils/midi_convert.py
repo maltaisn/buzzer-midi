@@ -22,8 +22,6 @@
 # $ ./midi_convert.py <input file> - [options] > output.dat
 # $ ./midi_convert.py --help
 
-# TODO: insert short pause for repeating notes
-
 import argparse
 import math
 import os
@@ -89,6 +87,14 @@ parser.add_argument("-s", "--strategy", type=str,
                     choices=TRACK_STRATEGIES.keys(),
                     default="auto", dest="track_strategy")
 parser.add_argument("-t", "--tempo", type=int, help="Tempo override in BPM", dest="tempo")
+parser.add_argument("-r", "--range", action="store", type=str,
+                    help="Time range to use from MIDI file, in seconds. Default is whole file.\n"
+                         "- ':10': first 10 seconds\n"
+                         "- '-10:': last 10 seconds\n"
+                         "- '10:': all except first 10 seconds\n"
+                         "- ':-10': all except last 10 seconds\n"
+                         "- '10:-10': between first 10 s and last 10 s",
+                    dest="time_range")
 parser.add_argument("-m", "--merge-tracks", action="store_true",
                     help="Merge MIDI tracks when creating buzzer tracks",
                     dest="merge_midi_tracks")
@@ -148,6 +154,7 @@ class Config:
     tempo_overriden: bool
     octave_adjust: int
     merge_midi_tracks: bool
+    time_range: Optional[slice]
     output_format: OutputFormat
     output_header_name: Optional[str]
     output_wav_file: Optional[str]
@@ -173,8 +180,22 @@ def create_config(args: argparse.Namespace) -> Config:
         tempo_min = math.ceil(beat_us_to_bpm(BuzzerMusic.TEMPO_MIN))
         tempo_max = math.floor(beat_us_to_bpm(BuzzerMusic.TEMPO_MAX))
         if not (tempo_min <= tempo_bpm <= tempo_max):
-            raise ValueError(f"tempo override out of bounds (between {tempo_min} and {tempo_max} BPM)")
+            raise ValueError(
+                f"tempo override out of bounds (between {tempo_min} and {tempo_max} BPM)")
         tempo_us = bpm_to_beat_us(tempo_bpm)
+
+    # time range
+    time_range: Optional[slice] = None
+    if args.time_range:
+        parts = args.time_range.split(":")
+        if len(parts) != 2:
+            raise ValueError("invalid time range")
+        try:
+            start = float(parts[0]) if parts[0] else 0
+            end = float(parts[1]) if parts[1] else None
+            time_range = slice(start, end)
+        except ValueError:
+            raise ValueError("invalid time range")
 
     output_format = OutputFormat.HEX_HEADER if args.header_name else OutputFormat.BINARY
 
@@ -193,8 +214,8 @@ def create_config(args: argparse.Namespace) -> Config:
             raise ValueError("invalid WAV file sample width specification")
 
     return Config(args.input_file, args.output_file, logger, args.track_strategy, tempo_us,
-                  tempo_overriden, args.octave_adjust, args.merge_midi_tracks, output_format,
-                  args.header_name, wav_file, wav_width)
+                  tempo_overriden, args.octave_adjust, args.merge_midi_tracks, time_range,
+                  output_format, args.header_name, wav_file, wav_width)
 
 
 class MidiConverter:
@@ -220,11 +241,13 @@ class MidiConverter:
 
         # create note frames for entire duration
         midi_duration = max(event_map.keys())
+        midi_duration_sec = midi_duration / midi.ticks_per_beat * tempo / 1e6
         frames = self._get_all_frames(tempo_map, tempo, midi_duration, midi.ticks_per_beat)
         self.logger.info(f"frames time computed, got {len(frames)} frames")
 
         # get notes played in each frame, for each MIDI track
         frames_notes = self._get_frame_notes(event_map, frames, track_count)
+        frames_notes = self._apply_time_range(frames_notes, tempo, midi_duration_sec)
 
         # do some validation before applying track assignment strategy
         max_notes_at_once = self._count_max_notes_at_once(frames_notes)
@@ -362,8 +385,9 @@ class MidiConverter:
                                              f"(consider overriding tempo).")
                         else:
                             if note not in notes_on_track:
-                                self.logger.info(f"note {event.note} already off "
-                                                 f"at MIDI time {frame}")
+                                # self.logger.info(f"note {event.note} already off "
+                                #                  f"at MIDI time {frame}")
+                                pass
                             else:
                                 notes_on_track.remove(note)
 
@@ -372,6 +396,39 @@ class MidiConverter:
                 timeline.append(list(notes_on[j]))
 
         return timelines
+
+    def _apply_time_range(self, frames_notes: FramesNotes,
+                          tempo: float, midi_duration_sec: float) -> FramesNotes:
+        if self.config.time_range:
+            nframes = len(frames_notes[0])
+            start = self.config.time_range.start
+            end = self.config.time_range.stop
+
+            if start <= -midi_duration_sec:
+                self._abort("invalid time slice: bad start time")
+            elif start < 0:
+                start += midi_duration_sec
+
+            if end is None:
+                end = midi_duration_sec
+            elif end <= -midi_duration_sec:
+                self._abort("invalid time slice: bad end time")
+            elif end < 0:
+                end += midi_duration_sec
+
+            time_per_frame = tempo / (BuzzerNote.TIMEFRAME_RESOLUTION * 1e6)
+            frame_first = round(start / time_per_frame)
+            frame_last = round(end / time_per_frame) + 1
+            if frame_last < frame_first:
+                self._abort(f"invalid time slice with end time before start time")
+            if frame_first > nframes:
+                self._abort(f"invalid time slice starting after file end")
+            if frame_last > nframes:
+                frame_last = nframes
+            self.logger.info(f"time slice from {start:.1f} s to {end:.1f} s, "
+                             f"keeping {frame_last - frame_first} frames")
+            return [notes[frame_first:frame_last] for notes in frames_notes]
+        return frames_notes
 
     def _count_max_notes_at_once(self, frames_notes: FramesNotes) -> int:
         """Count maximum number of notes played at once."""

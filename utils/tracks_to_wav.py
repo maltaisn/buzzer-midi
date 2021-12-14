@@ -149,7 +149,7 @@ def create_wav_file(music: BuzzerMusic, filename: str,
 
     states = [TrackState(track) for track in tracks]
     frames_per_32nd = round(sample_rate / BuzzerNote.TIMEFRAME_RESOLUTION * beat_duration)
-    frame_rate_actual = round(frames_per_32nd * 32 / beat_duration)
+    frame_rate_actual = round(frames_per_32nd * BuzzerNote.TIMEFRAME_RESOLUTION / beat_duration)
     max_notes = max((sum(((note.duration + 1) for note in track.notes)) for track in tracks))
     frames = np.zeros(max_notes * frames_per_32nd, dtype=np.uint8)
     i = 0
