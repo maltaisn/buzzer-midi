@@ -34,7 +34,7 @@ from typing import List, Dict, Tuple, TextIO, Optional, NoReturn
 from mido import MidiFile
 
 from logger import LogLevel, Logger
-from music_data import BuzzerMusic, BuzzerTrack, BuzzerNote
+from music_data import BuzzerMusic, BuzzerNote, ChannelSpec
 from track_strategy import AutoTrackStrategy, OptimizeSizeTrackStrategy, \
     OptimizeBuzzerTrackStrategy, ClosestTrackStrategy, ClosestAverageTrackStrategy, \
     FirstFitTrackStrategy, RandomTrackStrategy, FramesNotes, TrackStrategy, TrackStrategyFailError
@@ -62,6 +62,11 @@ TRACK_STRATEGIES: Dict[str, TrackStrategy] = {
     "random": RandomTrackStrategy(),
 }
 
+PREDEFINED_CHANNEL_SPECS = {
+    "atmega328p": "11,61,62500;-;0,72,250e3;-;23,72,125e3;-",
+    "atmega3208": "0,72,5e6;-;-",
+}
+
 MidiEventMap = Dict[int, List[Tuple[int, any]]]
 MidiTempoMap = Dict[int, int]
 
@@ -70,7 +75,7 @@ parser = argparse.ArgumentParser(description="Convert MIDI file to buzzer music 
 parser.add_argument("input_file", type=str, help="Input MIDI file")
 parser.add_argument("output_file", type=str, default="-", nargs="?",
                     help="Output buzzer music data (- for stdout)")
-parser.add_argument("-l", "--log", type=str, help="Log level (error | warning | info)",
+parser.add_argument("-l", "--log", type=str, help="Log level (off | error | warning | info)",
                     choices=[v.name.lower() for v in LogLevel],
                     default=LogLevel.INFO.name.lower(), dest="log_level")
 parser.add_argument("-s", "--strategy", type=str,
@@ -86,7 +91,10 @@ parser.add_argument("-s", "--strategy", type=str,
                     "- random: assign notes randomly to all available tracks",
                     choices=TRACK_STRATEGIES.keys(),
                     default="auto", dest="track_strategy")
-parser.add_argument("-t", "--tempo", type=int, help="Tempo override in BPM", dest="tempo")
+parser.add_argument("-t", "--tempo", type=int,
+                    help="Tempo override in BPM.\n"
+                         "Note that this only affects the encoded tempo, not the actual tempo "
+                         "of the music.", dest="tempo")
 parser.add_argument("-r", "--range", action="store", type=str,
                     help="Time range to use from MIDI file, in seconds. Default is whole file.\n"
                          "- ':10': first 10 seconds\n"
@@ -95,6 +103,20 @@ parser.add_argument("-r", "--range", action="store", type=str,
                          "- ':-10': all except last 10 seconds\n"
                          "- '10:-10': between first 10 s and last 10 s",
                     dest="time_range")
+parser.add_argument("-c", "--channels", action="store", type=str,
+                    help="Channel specification, using the following format:\n"
+                         "'<lowest note>,<highest note>,<timer period>;...'\n"
+                         "The timer period is optional and only used for WAV file generation.\n"
+                         "In indicates the timer period in MCU cycles (<MCU freq> / <prescaler>).\n"
+                         "Examples:\n"
+                         "- 'B2,C#7,62500;-;C2,C8,250e3;-;B3,C8,125e3;-': ATmega328P 6 channels\n"
+                         "- '0,72,5e6;-;-': ATmega3208 3 channels\n"
+                         "These two specifications can also be set with 'atmega328p' and "
+                         "'atmega3208' respectively.\n"
+                         "Notes can be named (C2, C8) or numbered (0, 72).\n"
+                         "The last channel specification can be duplicated using a - symbol.\n"
+                         "Default is 'atmega3208'.",
+                    dest="channels", default="atmega3208")
 parser.add_argument("-m", "--merge-tracks", action="store_true",
                     help="Merge MIDI tracks when creating buzzer tracks",
                     dest="merge_midi_tracks")
@@ -122,6 +144,23 @@ def beat_us_to_bpm(us: float) -> float:
 def format_midi_note(note: int) -> str:
     """Convert midi note 0-127 to note name."""
     return f"{NOTE_NAMES[note % 12]}{note // 12 - 1}"
+
+
+def parse_note_spec(spec: str) -> int:
+    """Convert note specification 'C3' or 12 to buzzer note value."""
+    try:
+        for i, name in enumerate(NOTE_NAMES):
+            if spec.startswith(name):
+                octave = int(spec[len(name):])
+                note = (octave - 2) * 12 + i
+                break
+        else:
+            note = int(spec)
+    except ValueError:
+        raise ValueError(f"invalid channel specification: bad note {spec}")
+    if note < 0 or note > BuzzerNote.MAX_NOTE:
+        raise ValueError(f"invalid channel specification: note {spec} out of range")
+    return note
 
 
 def write_c_header(file: TextIO, data: bytes, arr_name: str):
@@ -155,17 +194,47 @@ class Config:
     octave_adjust: int
     merge_midi_tracks: bool
     time_range: Optional[slice]
+    channels_spec: List[ChannelSpec]
     output_format: OutputFormat
     output_header_name: Optional[str]
     output_wav_file: Optional[str]
     output_wav_width: int
 
 
+def parse_channels_spec(spec: str) -> List[ChannelSpec]:
+    if spec in PREDEFINED_CHANNEL_SPECS:
+        spec = PREDEFINED_CHANNEL_SPECS[spec]
+
+    channel_specs = spec.split(";")
+    if not channel_specs:
+        raise ValueError("invalid channels specfication: no channels")
+
+    specs: List[ChannelSpec] = []
+    for channel_spec in channel_specs:
+        if channel_spec == "-":
+            specs.append(specs[-1])
+        else:
+            parts = channel_spec.split(",")
+            if not (2 <= len(parts) <= 3):
+                raise ValueError(f"invalid channel specification: '{channel_spec}'")
+            min_note = parse_note_spec(parts[0])
+            max_note = parse_note_spec(parts[1])
+            try:
+                timer_period = round(float(parts[2]))
+                if timer_period <= 0:
+                    raise ValueError
+            except ValueError:
+                raise ValueError(f"invalid channel specification: bad timer period")
+            specs.append(ChannelSpec(range(min_note, max_note + 1), timer_period))
+
+    return specs
+
+
 def create_config(args: argparse.Namespace) -> Config:
     """Validate input arguments and create typed configuration object."""
     input_path = Path(args.input_file)
     if not input_path.is_file():
-        raise
+        raise ValueError("invalid input file")
 
     # logging
     log_level = next((e for e in LogLevel if e.name.lower() == args.log_level))
@@ -180,8 +249,8 @@ def create_config(args: argparse.Namespace) -> Config:
         tempo_min = math.ceil(beat_us_to_bpm(BuzzerMusic.TEMPO_MIN))
         tempo_max = math.floor(beat_us_to_bpm(BuzzerMusic.TEMPO_MAX))
         if not (tempo_min <= tempo_bpm <= tempo_max):
-            raise ValueError(
-                f"tempo override out of bounds (between {tempo_min} and {tempo_max} BPM)")
+            raise ValueError(f"tempo override out of bounds "
+                             f"(between {tempo_min} and {tempo_max} BPM)")
         tempo_us = bpm_to_beat_us(tempo_bpm)
 
     # time range
@@ -196,6 +265,8 @@ def create_config(args: argparse.Namespace) -> Config:
             time_range = slice(start, end)
         except ValueError:
             raise ValueError("invalid time range")
+
+    channels_spec = parse_channels_spec(args.channels)
 
     output_format = OutputFormat.HEX_HEADER if args.header_name else OutputFormat.BINARY
 
@@ -215,7 +286,7 @@ def create_config(args: argparse.Namespace) -> Config:
 
     return Config(args.input_file, args.output_file, logger, args.track_strategy, tempo_us,
                   tempo_overriden, args.octave_adjust, args.merge_midi_tracks, time_range,
-                  output_format, args.header_name, wav_file, wav_width)
+                  channels_spec, output_format, args.header_name, wav_file, wav_width)
 
 
 class MidiConverter:
@@ -251,8 +322,10 @@ class MidiConverter:
 
         # do some validation before applying track assignment strategy
         max_notes_at_once = self._count_max_notes_at_once(frames_notes)
-        if max_notes_at_once > BuzzerTrack.MAX_TRACKS:
-            self._abort(f"can't convert, up to {max_notes_at_once} notes played at once")
+        channels_count = len(config.channels_spec)
+        if max_notes_at_once > channels_count:
+            self._abort(f"can't convert, up to {max_notes_at_once} notes played at once "
+                        f"({channels_count} channels available)")
         else:
             self.logger.info(f"file has at most {max_notes_at_once} notes played at once")
         self._verify_note_range(frames_notes, tempo)
@@ -301,12 +374,14 @@ class MidiConverter:
             self.logger.info(f"tempo map built, using tempo override of "
                              f"{beat_us_to_bpm(tempo):.0f} BPM")
         else:
-            # get map of tempos in MIDI by time (MIDI clock)
-            midi_duration = max(event_map.keys())
-            tempo = self._get_average_tempo(tempo_map, midi_duration)
+            # average tempo doesn't work great, short pauses between notes are missed
+            # using highest tempo (in BPM) works better but data size increaes.
+            tempo = min(tempo_map.values())
+            # midi_duration = max(event_map.keys())
+            # tempo = self._get_average_tempo(tempo_map, midi_duration)
             if len(tempo_map) > 2:
-                self.logger.warn("file has variable tempo, average tempo will be used.")
-            self.logger.info(f"tempo map built, average tempo is {beat_us_to_bpm(tempo):.0f} BPM")
+                self.logger.warn("file has variable tempo, highest tempo will be used.")
+            self.logger.info(f"tempo map built, highest tempo is {beat_us_to_bpm(tempo):.0f} BPM")
         return tempo
 
     def _get_tempo_map(self, event_map: MidiEventMap) -> MidiTempoMap:
@@ -346,7 +421,7 @@ class MidiConverter:
             frames.append(round(midi_ticks))
             # advance time to go to next timeframe, using average tempo as reference tempo
             # and taking clocks per tick into account
-            midi_ticks += (curr_tempo / tempo) * ticks_per_beat / BuzzerNote.TIMEFRAME_RESOLUTION
+            midi_ticks += (tempo / curr_tempo) * ticks_per_beat / BuzzerNote.TIMEFRAME_RESOLUTION
         return frames
 
     def _get_frame_notes(self, event_map: MidiEventMap, frames: List[int],
@@ -431,8 +506,9 @@ class MidiConverter:
         return frames_notes
 
     def _count_max_notes_at_once(self, frames_notes: FramesNotes) -> int:
-        """Count maximum number of notes played at once."""
-        return max(len(notes) for track_notes in frames_notes for notes in track_notes)
+        """Count maximum number of notes played at once in all tracks combined."""
+        nframes = len(frames_notes[0])
+        return max(sum(len(notes[i]) for notes in frames_notes) for i in range(nframes))
 
     def _verify_note_range(self, frames_notes: FramesNotes, tempo: float) -> None:
         """Check that no note in file exceeds the largest timer range and
@@ -443,8 +519,8 @@ class MidiConverter:
             for i, frame_notes in enumerate(track_notes):
                 for j, note in enumerate(frame_notes):
                     track_found = False
-                    for track_range in BuzzerTrack.TRACK_RANGES:
-                        if BuzzerNote.from_midi(note) in track_range:
+                    for spec in self.config.channels_spec:
+                        if BuzzerNote.from_midi(note) in spec.note_range:
                             track_found = True
                             break
                     if not track_found and note != last_bad_note:
@@ -483,7 +559,8 @@ class MidiConverter:
         track_strategy = TRACK_STRATEGIES[self.config.strategy_name]
         track_strategy.merge_midi_tracks = self.config.merge_midi_tracks
         try:
-            tracks = track_strategy.create_tracks(self.logger, frames_notes)
+            tracks = track_strategy.create_tracks(self.logger,
+                                                  self.config.channels_spec, frames_notes)
         except TrackStrategyFailError:
             # strategy failed, abort
             self._abort(f"failed to apply '{self.config.strategy_name}' strategy.")

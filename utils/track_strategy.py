@@ -18,7 +18,7 @@ from abc import ABC
 from typing import List, Optional, Tuple
 
 from logger import Logger
-from music_data import BuzzerMusic, BuzzerTrack, BuzzerNote, FramesNotes
+from music_data import BuzzerMusic, BuzzerTrack, BuzzerNote, FramesNotes, ChannelSpec
 
 
 class TrackStrategyFailError(Exception):
@@ -33,20 +33,20 @@ class TrackStrategy(ABC):
     def __init__(self):
         self.merge_midi_tracks = False
 
-    def create_tracks(self, logger: Logger,
+    def create_tracks(self, logger: Logger, channels_spec: List[ChannelSpec],
                       frames_notes: FramesNotes) -> List[BuzzerTrack]:
         """
         Create a list of buzzer tracks by placing the notes in each frame.
         Subclasses must not modify frames_notes!
         :raises TrackStrategyFailError if strategy failed to be applied
         """
-        tracks = [BuzzerTrack(i) for i in range(BuzzerTrack.MAX_TRACKS)]
+        tracks = [BuzzerTrack(i, spec) for i, spec in enumerate(channels_spec)]
         # which MIDI track a buzzer track has been set to, or None if none yet.
-        midi_track_assignment: List[Optional[int]] = [None] * BuzzerTrack.MAX_TRACKS
+        midi_track_assignment: List[Optional[int]] = [None] * len(channels_spec)
 
         def filter_tracks(track: BuzzerTrack):
             midi_asg = midi_track_assignment[track.number]
-            return (bnote in track.note_range and
+            return (bnote in track.spec.note_range and
                     (self.merge_midi_tracks or midi_asg is None or midi_track == midi_asg))
 
         for i in range(len(frames_notes[0])):
@@ -137,11 +137,11 @@ class ClosestAverageTrackStrategy(TrackStrategy):
     _tracks_sum: List[int]
     _tracks_count: List[int]
 
-    def create_tracks(self, logger: Logger,
+    def create_tracks(self, logger: Logger, channels_spec: List[ChannelSpec],
                       frames_notes: FramesNotes) -> List[BuzzerTrack]:
-        self._tracks_sum = [0] * BuzzerTrack.MAX_TRACKS
-        self._tracks_count = [0] * BuzzerTrack.MAX_TRACKS
-        return super().create_tracks(logger, frames_notes)
+        self._tracks_sum = [0] * len(channels_spec)
+        self._tracks_count = [0] * len(channels_spec)
+        return super().create_tracks(logger, channels_spec, frames_notes)
 
     def assign_track(self, tracks: List[BuzzerTrack], bnote: int) -> Optional[int]:
         closest_track: Optional[int] = None
@@ -178,7 +178,7 @@ class FirstFitTrackStrategy(TrackStrategy):
 
     def assign_track(self, tracks: List[BuzzerTrack], bnote: int) -> Optional[int]:
         if self.use_preferred:
-            tracks.sort(key=lambda t: len(t.note_range))
+            tracks.sort(key=lambda t: len(t.spec.note_range))
         return tracks[0].number
 
 
@@ -191,9 +191,9 @@ class RandomTrackStrategy(TrackStrategy):
     """
 
     def assign_track(self, tracks: List[BuzzerTrack], bnote: int) -> Optional[int]:
-        tracks.sort(key=lambda t: len(t.note_range))
-        smallest_range = tracks[0].note_range
-        tracks = [t for t in tracks if t.note_range == smallest_range]
+        tracks.sort(key=lambda t: len(t.spec.note_range))
+        smallest_range = tracks[0].spec.note_range
+        tracks = [t for t in tracks if t.spec.note_range == smallest_range]
         return random.choice(tracks).number
 
 
@@ -202,18 +202,20 @@ class AutoTrackStrategy(TrackStrategy):
     default strategy of trying strategies in order
     """
 
-    def create_tracks(self, logger: Logger,
+    def create_tracks(self, logger: Logger, channels_spec: List[ChannelSpec],
                       frames_notes: FramesNotes) -> List[BuzzerTrack]:
         # try strategies in order
         for s in auto_strategies:
             name, strategy = s
+            strategy.merge_midi_tracks = self.merge_midi_tracks
             try:
-                tracks = strategy.create_tracks(logger, frames_notes)
+                tracks = strategy.create_tracks(logger, channels_spec, frames_notes)
             except TrackStrategyFailError:
                 logger.info(f"'{name}' strategy couldn't be applied")
             else:
                 logger.info(f"'{name}' strategy successfully applied")
                 return tracks
+        raise TrackStrategyFailError
 
 
 class OptimizeSizeTrackStrategy(TrackStrategy):
@@ -221,7 +223,7 @@ class OptimizeSizeTrackStrategy(TrackStrategy):
     try all strategies and use the one that gives the smallest data size.
     """
 
-    def create_tracks(self, logger: Logger,
+    def create_tracks(self, logger: Logger, channels_spec: List[ChannelSpec],
                       frames_notes: FramesNotes) -> List[BuzzerTrack]:
         best_tracks: Optional[List[BuzzerTrack]] = None
         best_track_strategy: Optional[str] = None
@@ -229,8 +231,9 @@ class OptimizeSizeTrackStrategy(TrackStrategy):
         music = BuzzerMusic(0)
         for s in normal_strategies:
             name, strategy = s
+            strategy.merge_midi_tracks = self.merge_midi_tracks
             try:
-                tracks = strategy.create_tracks(logger, frames_notes)
+                tracks = strategy.create_tracks(logger, channels_spec, frames_notes)
             except TrackStrategyFailError:
                 logger.info(f"'{name}' strategy couldn't be applied")
             else:
@@ -254,7 +257,7 @@ class OptimizeBuzzerTrackStrategy(TrackStrategy):
     if same number of buzzers, compare size
     """
 
-    def create_tracks(self, logger: Logger,
+    def create_tracks(self, logger: Logger, channels_spec: List[ChannelSpec],
                       frames_notes: FramesNotes) -> Optional[List[BuzzerTrack]]:
         best_tracks: Optional[List[BuzzerTrack]] = None
         best_track_strategy: Optional[str] = None
@@ -264,7 +267,7 @@ class OptimizeBuzzerTrackStrategy(TrackStrategy):
             name, strategy = s
             strategy.merge_midi_tracks = self.merge_midi_tracks
             try:
-                tracks = strategy.create_tracks(logger, frames_notes)
+                tracks = strategy.create_tracks(logger, channels_spec, frames_notes)
             except TrackStrategyFailError:
                 logger.info(f"'{name}' strategy couldn't be applied")
             else:

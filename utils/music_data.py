@@ -18,6 +18,17 @@ from typing import List
 FramesNotes = List[List[List[int]]]
 
 
+def get_note_freq(note: int) -> float:
+    """Return the frequency of a note value in Hz (C2=0)."""
+    return 440 * 2**((note - 33) / 12)
+
+
+@dataclass
+class ChannelSpec:
+    note_range: range
+    timer_period: int = field(default=0)
+
+
 @dataclass
 class BuzzerNote:
     # note as encoded in buzzer busic, C2 is 0, B7 is 71
@@ -27,6 +38,7 @@ class BuzzerNote:
 
     NONE = 0xff
     MAX_DURATION = 0x7fff
+    MAX_NOTE = 83  # B8
 
     # minimum note resolution for buzzer music system (1/32nd of a beat).
     TIMEFRAME_RESOLUTION = 32
@@ -45,7 +57,7 @@ class BuzzerNote:
 
     @staticmethod
     def from_midi(midi_note: int):
-        # C3=48 in MIDI, C3=12 in buzzer music
+        # C2=36 in MIDI, C2=0 in buzzer music
         return midi_note - 36
 
 
@@ -54,38 +66,18 @@ class BuzzerTrack:
     # track number, 0 to MAX_TRACK-1
     number: int
     # track note range
-    note_range: range
+    spec: ChannelSpec
     # track notes
     notes: List[BuzzerNote]
 
-    # ranges of notes that can be encoded by each track number
-    # limitations are due to timer periods and prescaler.
-    # (see notes.xlsx)
-    # TRACK_RANGES = [
-    #     range(11, 62),  # B2 to C#7
-    #     range(11, 62),
-    #     range(0, 73),  # C2 to C8
-    #     range(0, 73),
-    #     # range(23, 73),  # B3 to C8
-    #     # range(23, 73),
-    # ]
-
-    TRACK_RANGES = [
-        range(0, 73),
-        range(0, 73),
-        range(0, 73),
-    ]
-
-    MAX_TRACKS = len(TRACK_RANGES)  # number of tracks available in system
-
-    def __init__(self, number: int):
+    def __init__(self, number: int, spec: ChannelSpec):
         self.number = number
-        self.note_range = BuzzerTrack.TRACK_RANGES[number]
+        self.spec = spec
         self.notes = []
 
     def add_note(self, note: int) -> None:
         """append note at the end of track, merge with previous note if identical"""
-        if note != BuzzerNote.NONE and note not in self.note_range:
+        if note != BuzzerNote.NONE and note not in self.spec.note_range:
             raise ValueError("Note out of range for track")
         if len(self.notes) > 0 and self.notes[-1].note == note and \
                 self.notes[-1].duration < BuzzerNote.MAX_DURATION:
@@ -135,7 +127,7 @@ class BuzzerMusic:
                     b += track.encode()
         else:
             # no tracks, put single empty track
-            b += BuzzerTrack(0).encode()
+            b += BuzzerTrack(0, ChannelSpec(range(0), 0)).encode()
         return b
 
     @staticmethod

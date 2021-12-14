@@ -19,7 +19,7 @@ from typing import Optional, List
 
 import numpy as np
 
-from music_data import BuzzerMusic, BuzzerNote, BuzzerTrack
+from music_data import BuzzerMusic, BuzzerNote, BuzzerTrack, get_note_freq
 
 # sample rate for WAV file if sample width >= 2
 SAMPLE_RATE = 44100
@@ -32,21 +32,6 @@ PWM_PERIOD = 16
 
 # maximum value in a WAV file sample.
 SAMPLE_MAX = 255
-
-# taken from music.c, timer counts for each note
-# frequency = MCU_FREQ / ((TIMER_NOTES[i] + 1) * TIMER_NOTES_PRESCALER)
-TIMER_NOTES = [
-    1910, 1803, 1702, 1606, 1516, 1431, 1350, 1275, 1203, 1135, 1072, 1011,
-    955, 901, 850, 803, 757, 715, 675, 637, 601, 567, 535, 505,
-    477, 450, 425, 401, 378, 357, 337, 318, 300, 283, 267, 252,
-    238, 224, 212, 200, 189, 178, 168, 158, 149, 141, 133, 126,
-    118, 112, 105, 99, 94, 88, 83, 79, 74, 70, 66, 62,
-    59, 55, 52, 49, 46, 44, 41, 39, 37, 35, 33, 31,
-    29, 27, 26, 24, 23, 21, 20, 19, 18, 17, 16, 15,
-    14, 13, 12,
-]
-TIMER_NOTES_PRESCALER = 64
-MCU_FREQ = 16e6
 
 
 @dataclass
@@ -74,14 +59,19 @@ def _go_to_next_note(states: List[TrackState]) -> None:
         if state.done:
             continue
         note = state.current_note
+        track = state.track
         if not note or note.duration == 0:
-            if state.current_idx == len(state.track.notes):
+            if state.current_idx == len(track.notes):
                 state.done = True
             else:
-                note = copy.copy(state.track.notes[state.current_idx])
+                note = copy.copy(track.notes[state.current_idx])
                 state.current_note = note
                 if note.note != BuzzerNote.NONE:
-                    note_freq = MCU_FREQ / ((TIMER_NOTES[note.note] + 1) * TIMER_NOTES_PRESCALER)
+                    # timer count is an integer, rounding results in some error
+                    # calculate note frequency as if it was produced by a timer.
+                    # / 2 since timer interrupt is called twice per note period.
+                    timer_count = round(track.spec.timer_period / get_note_freq(note.note) / 2)
+                    note_freq = track.spec.timer_period / timer_count / 2
                     state.note_max_phase = SAMPLE_RATE / note_freq
                 state.current_idx += 1
                 state.level = 0

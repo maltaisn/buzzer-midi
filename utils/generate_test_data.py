@@ -14,17 +14,26 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# generate test data for atmega328p target (one track per buzzer).
+# generate test data for 6 tracks.
+# intended for atmega328p target but will also work with atmega3208.
 
 import random
 from typing import List, Iterable
 
 from midi_convert import write_c_header
-from music_data import BuzzerTrack, BuzzerMusic, BuzzerNote
+from music_data import BuzzerTrack, BuzzerMusic, BuzzerNote, ChannelSpec
 
 # test data file name
 filename = "../include/music_data.h"
 
+channels_spec = [
+    ChannelSpec(range(11, 62)),
+    ChannelSpec(range(11, 62)),
+    ChannelSpec(range(0, 73)),
+    ChannelSpec(range(0, 73)),
+    ChannelSpec(range(23, 73)),
+    ChannelSpec(range(23, 73)),
+]
 
 def add_pause(tracks: List[BuzzerTrack], duration: int) -> None:
     for i in range(duration):
@@ -42,10 +51,10 @@ def play_note_on_tracks(tracks: List[BuzzerTrack], nums: Iterable[int],
 
 def main() -> None:
     music = BuzzerMusic(60)  # 120 BPM
-    tracks = [BuzzerTrack(i) for i in range(BuzzerTrack.MAX_TRACKS)]
+    tracks = [BuzzerTrack(i, spec) for i, spec in enumerate(channels_spec)]
     music.tracks = tracks
 
-    play_note_on_tracks(tracks, [0], duration=32768)
+    # play_note_on_tracks(tracks, [0], duration=32768)
 
     # test each buzzer separatedly
     add_pause(tracks, 32)
@@ -67,13 +76,13 @@ def main() -> None:
 
     # play 32nd second notes over full range on each buzzer
     add_pause(tracks, 32)
-    for i in range(BuzzerTrack.MAX_TRACKS):
-        for bnote in BuzzerTrack.TRACK_RANGES[i]:
+    for i, track in enumerate(tracks):
+        for bnote in track.spec.note_range:
             play_note_on_tracks(tracks, [i], note=bnote, duration=8)
 
     # quick notes on buzzer
     add_pause(tracks, 16)
-    for i in range(BuzzerTrack.MAX_TRACKS):
+    for i in range(len(tracks)):
         add_pause(tracks, 16)
         for _ in range(16):
             play_note_on_tracks(tracks, [1], note=60 - 6 * i, duration=4)
@@ -85,7 +94,7 @@ def main() -> None:
         nums = set(random.choices(range(6), k=random.randint(1, 6)))
         for i in range(16):
             for i, track in enumerate(tracks):
-                note = random.choice(track.note_range)
+                note = random.choice(track.spec.note_range)
                 track.add_note(note if track.number in nums else BuzzerNote.NONE)
 
     # finalize tracks and encode
