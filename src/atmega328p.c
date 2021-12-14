@@ -44,7 +44,8 @@
 // only differ by their prescaler.
 // timer counts are calculated using the following formula:
 //   [count] = round([f_cpu] / [prescaler] / [note frequency] / 2) - 1
-// Maximum error is around 25% of a semitone for high pitch notes, 5-10% for lower pitch notes.
+// See the utils/error_analysis.py script for more details.
+// Maximum error is at most 0.3 semitone, but usually 0.1 semitone for C2-C6.
 _FLASH uint16_t TIMER_NOTES[] = {
     1910, 1803, 1702, 1606, 1516, 1431, 1350, 1275, 1203, 1135, 1072, 1011,
     955, 901, 850, 803, 757, 715, 675, 637, 601, 567, 535, 505,

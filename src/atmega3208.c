@@ -78,7 +78,7 @@ static uint8_t PWM_LEVELS[] = {
 // Timer counts for TCB channel timers, for each playable note.
 // Counts are calculated using the following formula:
 //   [count] = round([f_cpu] / [prescaler] / [note frequency] / 2) - 1
-// Maximum error should be less than 0.1% of a semitone.
+// See the utils/error_analysis.py script for more details. Maximum error is about 0.01 semitone.
 static uint16_t TIMER_NOTES[] = {
     38222, 36076, 34051, 32140, 30336, 28634, 27026, 25510, 24078, 22726, 21451, 20247,
     19110, 18038, 17025, 16070, 15168, 14316, 13513, 12754, 12038, 11363, 10725, 10123,
