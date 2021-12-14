@@ -26,8 +26,8 @@
 #define NO_NOTE 0xff
 
 typedef struct {
-    // Current track pos in music data array
-    // TRACK_POS_END if track isn't used or when track has ended.
+    // Current track position in music data array
+    // TRACK_POS_END if channel isn't used or when track has ended.
     _FLASH uint8_t* track_pos;
 
     // Note being currently played (0-72).
@@ -46,10 +46,10 @@ typedef struct {
     //       higher values result in slower tempo, lower values in faster tempo.
     //       tempo = 0 is 7324 BPM and tempo = 255 is 29 BPM.
     //
-    // 0x01+: track data (at least one track)
+    // 0x01+: track data (at least one channel)
     //
     // Track data:
-    // 0x00: track number, 0-(MAX_TRACKS-1)
+    // 0x00: channel number, 0-(MAX_CHANNELS-1)
     // 0x01-0x02: track length, in bytes, including header (little endian).
     // 0x03+: note data.
     // last byte: 0xfe
@@ -62,13 +62,11 @@ typedef struct {
     //   for example: 7f = 0x7f, 80 01 = 0x80, 80 10 = 0x800, ff ff = 0x7fff
     _FLASH uint8_t* music_data;
 
-    // music tracks
-    // - track 0-1: timer0, C4 to B7, pin 6 and 5
-    // - track 2-3: timer1, C2 to B7, pin 9 and 10
-    // - track 4-5: timer2, C4 to B7, pin 11 and 3
-    track_t tracks[MAX_TRACKS];
+    // Music tracks, one per channel.
+    // Maximum number of channels and playable note for each channel depends on implementation.
+    track_t tracks[MAX_CHANNELS];
 
-    // music tempo (1 beat = 8200 * (tempo) us)
+    // Music tempo (see calculation above).
     uint8_t tempo;
 } music_t;
 

@@ -17,7 +17,7 @@
 // ==== 6 channels on 6 buzzers implementation for ATmega3208 ====
 //
 // Output notes from six different channels on six buzzers, using
-// each timer (timer0, timer1, timer2) for two tracks.
+// each timer (timer0, timer1, timer2) for two channels.
 // Output is done on port D (D2, D3, D4, D5, D6 & D7).
 //
 // The timers have different prescalers to widen the range of playable notes.
@@ -61,18 +61,18 @@ _FLASH uint16_t TIMER_NOTES[] = {
 #define TIMER1_OFFSET (0 - 0)
 #define TIMER2_OFFSET (35 - 23)
 
-#define TRACK0_ADJUST 1
-#define TRACK1_ADJUST 1
-#define TRACK2_ADJUST 0
-#define TRACK3_ADJUST 2
-#define TRACK4_ADJUST 1
-#define TRACK5_ADJUST 0
+#define CHANNEL0_ADJUST 1
+#define CHANNEL1_ADJUST 1
+#define CHANNEL2_ADJUST 0
+#define CHANNEL3_ADJUST 2
+#define CHANNEL4_ADJUST 1
+#define CHANNEL5_ADJUST 0
 
 // GPIOR0 is accessible with SBI.
 // A register could have also been used.
 #define notes_on GPIOR0
 
-// current timer count for each track, or NO_NOTE_COUNTx if no note playing.
+// current timer count for each channel, or NO_NOTE_COUNTx if no note playing.
 static uint8_t timer_cnt0 = NO_NOTE_COUNT;
 static uint8_t timer_cnt1 = NO_NOTE_COUNT;
 static uint16_t timer_cnt2 = NO_NOTE_COUNT;
@@ -121,7 +121,7 @@ void impl_reset(void) {
     OCR2A = NO_NOTE_COUNT;
 }
 
-void impl_play_note(const track_t* track, uint8_t track_num) {
+void impl_play_note(const track_t* track, uint8_t channel) {
     // - set or clear bit on notes_on bit-field
     // - update timer compare match timer_notex (or NO_NOTE_COUNTx if no note playing)
     // - initialize current timer count to timer note count
@@ -132,11 +132,11 @@ void impl_play_note(const track_t* track, uint8_t track_num) {
     bool has_note = track->note != NO_NOTE;
     ATOMIC_BLOCK(ATOMIC_FORCEON) {
         if (has_note) {
-            notes_on |= _BV(track_num);
+            notes_on |= _BV(channel);
         } else {
-            notes_on &= ~_BV(track_num);
+            notes_on &= ~_BV(channel);
         }
-        switch (track_num) {
+        switch (channel) {
             case 0: {
                 timer_note0 = has_note ? TIMER_NOTES[track->note + TIMER0_OFFSET] : NO_NOTE_COUNT;
                 timer_cnt0 = timer_note0;
@@ -185,8 +185,8 @@ void impl_play_note(const track_t* track, uint8_t track_num) {
     }
 }
 
-// All ISRs follow the same principle. Each timer controls two tracks
-// so a separate timer count is kept for each track. The actual timer
+// All ISRs follow the same principle. Each timer controls two channels
+// so a separate timer count is kept for each channel. The actual timer
 // count is set to the lowest of those two, at all times. When the
 // interrupt is triggered, both counts are decremented by the current
 // timer period to account for elapsed time since last interrupt. Then,
@@ -199,8 +199,8 @@ void impl_play_note(const track_t* track, uint8_t track_num) {
 // dealing with 16-bit data). Assembly output should be checked if a
 // change is made to ensure this.
 
-// Also notice that the track counts are not always set to the note
-// count, but sometimes have a TRACKn_ADJUST subtracted.
+// Also notice that the channel counts are not always set to the note
+// count, but sometimes have a CHANNELn_ADJUST subtracted.
 // This is based on experiment aiming to reduce dissonance when two
 // notes with close frequency are being played by the same timer. These
 // adjustments are probably influenced by a variety of factors, and
@@ -220,14 +220,14 @@ ISR(TIMER0_COMPA_vect) {
         PIND |= _BV(PD2);
         cnt0 = timer_note0;
         if (notes_on & _BV(0)) {
-            cnt0 -= TRACK0_ADJUST;
+            cnt0 -= CHANNEL0_ADJUST;
         }
     }
     if (cnt1 == 0) {
         PIND |= _BV(PD3);
         cnt1 = timer_note1;
         if (notes_on & _BV(1)) {
-            cnt1 -= TRACK1_ADJUST;
+            cnt1 -= CHANNEL1_ADJUST;
         }
     }
     timer_cnt0 = cnt0;
@@ -249,14 +249,14 @@ ISR(TIMER1_COMPA_vect) {
         PIND |= _BV(PD4);
         cnt2 = timer_note2;
         if (notes_on & _BV(2)) {
-            cnt2 -= TRACK2_ADJUST;
+            cnt2 -= CHANNEL2_ADJUST;
         }
     }
     if (cnt3 == 0) {
         PIND |= _BV(PD5);
         cnt3 = timer_note3;
         if (notes_on & _BV(3)) {
-            cnt3 -= TRACK3_ADJUST;
+            cnt3 -= CHANNEL3_ADJUST;
         }
     }
     timer_cnt2 = cnt2;
@@ -278,14 +278,14 @@ ISR(TIMER2_COMPA_vect) {
         PIND |= _BV(PD6);
         cnt4 = timer_note4;
         if (notes_on & _BV(4)) {
-            cnt4 -= TRACK4_ADJUST;
+            cnt4 -= CHANNEL4_ADJUST;
         }
     }
     if (cnt5 == 0) {
         PIND |= _BV(PD7);
         cnt5 = timer_note5;
         if (notes_on & _BV(5)) {
-            cnt5 -= TRACK5_ADJUST;
+            cnt5 -= CHANNEL5_ADJUST;
         }
     }
     timer_cnt4 = cnt4;

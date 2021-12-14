@@ -27,7 +27,7 @@ SAMPLE_RATE = 44100
 # sample rate for WAV file if sample width = 1 (PWM mode)
 PWM_SAMPLE_RATE = 524288
 # number of samples in a PWM period.
-# the PWM resolution is log2(PWM_PERIOD / 2) = 3 bits
+# the PWM resolution is log2(PWM_PERIOD) = 3 bits
 PWM_PERIOD = 16
 
 # maximum value in a WAV file sample.
@@ -112,7 +112,7 @@ def _generate_frames_for_state_pwm(frames: np.ndarray, i: int,
     # generate frames for current 1/32nd of a beat, in PWM.
     active_states = [state for state in states
                      if not state.done and state.current_note.note != BuzzerNote.NONE]
-    level_norm = (PWM_PERIOD / 2) / len(states)
+    level_norm = PWM_PERIOD / len(states)
     for j in range(frames_count // PWM_PERIOD):
         level = 0
         for state in active_states:
@@ -134,7 +134,7 @@ def create_wav_file(music: BuzzerMusic, filename: str,
     if not (0 < sample_width <= 8):
         raise RuntimeError("sample width out of bounds")
 
-    beat_duration = music.tempo * 0.0082
+    beat_duration = music.tempo * 0.008192
     sample_rate = PWM_SAMPLE_RATE if sample_width == 1 else SAMPLE_RATE
 
     levels = None

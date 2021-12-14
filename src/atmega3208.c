@@ -59,7 +59,7 @@
 #define HBRIDGE_OUTPUT 1
 
 // As a whole this register indicates an index in the PWM_LEVELS array.
-// - 0:2 indicate the current level of the output for a track
+// - 0:2 indicate the current level of the output for each channel
 // - 3:4 indicate the current volume level (0-3)
 // to slightly reduce interrupt latency, a general purpose I/O register is used
 // since it allows single cycle access.
@@ -102,7 +102,7 @@ void impl_setup(void) {
     TCA0.SPLIT.CTRLB = TCA_SPLIT_HCMP0EN_bm;
     TCA0.SPLIT.CTRLA = TCA_SPLIT_CLKSEL_DIV8_gc | TCA_SPLIT_ENABLE_bm;
 
-    // Timers B: used for each of the 3 music tracks. prescaler = 2, periodic interrupt mode.
+    // Timers B: used for each channel. prescaler = 2, periodic interrupt mode.
     TCB0.CTRLA = TCB_CLKSEL_CLKDIV2_gc;
     TCB0.INTCTRL = TCB_CAPT_bm;
 
@@ -127,12 +127,12 @@ void impl_reset(void) {
     TCB0.CTRLA &= ~TCB_ENABLE_bm;
     TCB1.CTRLA &= ~TCB_ENABLE_bm;
     TCB2.CTRLA &= ~TCB_ENABLE_bm;
-    out_level = VOLUME_LEVEL << MAX_TRACKS;
+    out_level = VOLUME_LEVEL << MAX_CHANNELS;
 }
 
-void impl_play_note(const track_t* track, uint8_t track_num) {
+void impl_play_note(const track_t* track, uint8_t channel) {
     bool has_note = track->note != NO_NOTE;
-    TCB_t* tcb = &TCB0 + track_num;
+    TCB_t* tcb = &TCB0 + channel;
     if (has_note) {
         tcb->CCMP = TIMER_NOTES[track->note];
         tcb->CTRLA |= TCB_ENABLE_bm;
@@ -140,12 +140,12 @@ void impl_play_note(const track_t* track, uint8_t track_num) {
         tcb->CTRLA &= ~TCB_ENABLE_bm;
         // set output level to zero. ideally only the track that stoppped playing should be turned
         // off but interrupts are frequent enough that this doesn't matter.
-        out_level = VOLUME_LEVEL << MAX_TRACKS;
+        out_level = VOLUME_LEVEL << MAX_CHANNELS;
     }
 }
 
 // TCB interrupts:
-// - update track output level bit field
+// - update channel output level bit field
 // - update TCA0 PWM duty cycle
 
 ISR(TCB0_INT_vect) {

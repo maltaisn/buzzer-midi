@@ -33,13 +33,13 @@ void impl_reset(void);
 
 /**
  * Callback from main program to implementation to update the
- * note currently being played on a track.
+ * note currently being played on a channel by a track.
  * If track->note is NO_NOTE, the implementation should stop playing the previous note.
  * Otherwise, the implementation should start (or continue) playing the current note.
  *
- * @param track The track with a note changed.
- * @param track_num The number of the track (1 - (MAX_TRACKS-1)).
+ * @param track The track in which a note changed.
+ * @param channel The channel assigned to the track (1 - (MAX_CHANNELS-1)).
  */
-void impl_play_note(const track_t *track, uint8_t track_num);
+void impl_play_note(const track_t *track, uint8_t channel);
 
 #endif //IMPL_H

@@ -16,7 +16,6 @@
 
 #include <music.h>
 #include <impl.h>
-#include <stdbool.h>
 
 /**
  * Read the next note in track data and set it as current note.
@@ -47,7 +46,7 @@ void music_init(_FLASH uint8_t* music_data, music_t* state) {
     state->music_data = music_data;
     state->tempo = *music_data++;
     _FLASH uint8_t* track_pos = music_data;
-    for (int i = 0; i < MAX_TRACKS; ++i) {
+    for (int i = 0; i < MAX_CHANNELS; ++i) {
         track_t *track = &state->tracks[i];
         if (track_pos[0] != i) {
             // track doesn't exist
@@ -62,13 +61,13 @@ void music_init(_FLASH uint8_t* music_data, music_t* state) {
 
 bool music_loop(music_t *state) {
     bool track_playing = false;
-    for (int i = 0; i < MAX_TRACKS; ++i) {
-        track_t *track = &state->tracks[i];
+    for (int channel = 0; channel < MAX_CHANNELS; ++channel) {
+        track_t *track = &state->tracks[channel];
         if (track->track_pos != TRACK_POS_END) {
             if (track->note_duration == 0) {
                 // note ended, go to next note
                 track_seek_note(track);
-                impl_play_note(track, i);
+                impl_play_note(track, channel);
             } else {
                 --track->note_duration;
             }
