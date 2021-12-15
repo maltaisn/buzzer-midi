@@ -63,8 +63,9 @@ TRACK_STRATEGIES: Dict[str, TrackStrategy] = {
 }
 
 PREDEFINED_CHANNEL_SPECS = {
-    "atmega328p": "11,61,62500;-;0,72,250e3;-;23,72,125e3;-",
+    "atmega328p": "11,61,62500;0,72,2e6",
     "atmega3208": "0,72,5e6;-;-",
+    "atmega328p_split": "11,61,62500;-;0,72,250e3;-;23,72,125e3;-",
 }
 
 MidiEventMap = Dict[int, List[Tuple[int, any]]]
@@ -105,9 +106,9 @@ parser.add_argument("-r", "--range", action="store", type=str,
                     dest="time_range")
 parser.add_argument("-c", "--channels", action="store", type=str,
                     help="Channel specification, using the following format:\n"
-                         "'<lowest note>,<highest note>,<timer period>;...'\n"
-                         "The timer period is optional and only used for WAV file generation.\n"
-                         "In indicates the timer period in MCU cycles (<MCU freq> / <prescaler>).\n"
+                         "'<lowest note>,<highest note>,<timer freq>;...'\n"
+                         "The timer frequency is optional and only used for WAV file generation.\n"
+                         "It indicates the timer interrupt frequency in Hz (<MCU freq> / <prescaler>).\n"
                          "Examples:\n"
                          "- 'B2,C#7,62500;-;C2,C8,250e3;-;B3,C8,125e3;-': ATmega328P 6 channels\n"
                          "- '0,72,5e6;-;-': ATmega3208 3 channels\n"

@@ -1,9 +1,11 @@
 #ifndef DEFS_H
 #define DEFS_H
 
-#if defined(__AVR_ATmega328P__)
+#if defined(TARGET_ATMEGA328P)
+#define MAX_CHANNELS 2
+#elif defined(TARGET_ATMEGA328P_SPLIT)
 #define MAX_CHANNELS 6
-#elif defined(__AVR_ATmega3208__)
+#elif defined(TARGET_ATMEGA3208)
 #define MAX_CHANNELS 3
 #else
 #error "Unsupported target"

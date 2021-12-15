@@ -43,7 +43,7 @@
 // - About 150k cycles per second for the interrupts (1.5% usage at 10 MHz).
 //   (counting 50 cycles per interrupt, x3, playing a 500 Hz note).
 
-#ifdef __AVR_ATmega3208__
+#ifdef TARGET_ATMEGA3208
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -172,4 +172,4 @@ ISR(TCB2_INT_vect) {
     TCB2.INTFLAGS = TCB_CAPT_bm;
 }
 
-#endif
+#endif // TARGET_ATMEGA3208

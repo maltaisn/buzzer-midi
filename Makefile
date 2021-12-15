@@ -6,7 +6,7 @@ ifeq ($(TARGET),)
 endif
 
 # target-specific settings
-ifeq ($(TARGET),atmega328p)
+ifeq ($(TARGET),$(filter $(TARGET),atmega328p atmega328p_split))
     MCU := atmega328p
     F_CPU := 16000000
 	AVRDUDE_FLAGS += -c arduino
@@ -31,6 +31,8 @@ CC := avr-gcc
 OBJCOPY := avr-objcopy
 OBJDUMP := avr-objdump
 AVRDUDE := avrdude
+
+DEFINES += TARGET_$(shell echo $(TARGET) | tr '[:lower:]' '[:upper:]')
 
 CFLAGS += -Wall -g -std=gnu11 -mmcu=$(MCU) -DF_CPU=$(F_CPU) -Os -I$(INCLUDE_DIR) \
 		 -ffunction-sections -fdata-sections -flto $(addprefix -D,$(DEFINES))

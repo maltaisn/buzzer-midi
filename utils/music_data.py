@@ -64,6 +64,10 @@ class BuzzerNote:
         # C2=36 in MIDI, C2=0 in buzzer music
         return midi_note - 36
 
+    def __repr__(self) -> str:
+        note_str = "OFF" if self.note == BuzzerNote.NONE else self.note
+        return f"BuzzerNote(note={note_str}, duration={self.duration})"
+
 
 @dataclass
 class BuzzerTrack:

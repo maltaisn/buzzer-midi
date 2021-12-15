@@ -15,7 +15,7 @@
 #  limitations under the License.
 
 # generate test data for 6 tracks.
-# intended for atmega328p target but will also work with atmega3208.
+# intended for atmega328p_split target but will also work with others.
 
 import random
 from typing import List, Iterable
@@ -26,7 +26,7 @@ from music_data import BuzzerTrack, BuzzerMusic, BuzzerNote, ChannelSpec
 # test data file name
 filename = "../include/music_data.h"
 
-channels_spec = parse_channels_spec("atmega3208")
+channels_spec = parse_channels_spec("atmega328p_split")
 
 
 def add_pause(tracks: List[BuzzerTrack], duration: int) -> None:
