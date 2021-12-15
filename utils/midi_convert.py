@@ -405,7 +405,7 @@ class MidiConverter:
 
     def _get_all_frames(self, tempo_map: MidiTempoMap, tempo: float, midi_duration: int,
                         ticks_per_beat: int) -> List[int]:
-        """From average tempo, event map and tempo map, compute the MIDI clock for each 1/32nd
+        """From average tempo, event map and tempo map, compute the MIDI clock for each 1/16th
         of beat, for the duration of the whole file, while accounting for variable tempo."""
         frames: List[int] = []
         midi_ticks = 0.0
@@ -450,7 +450,7 @@ class MidiConverter:
                     else:
                         if note in new_notes_on:
                             # note went on during this frame, and off again! that means note is
-                            # shorter than 1/32nd of a quarter note in overall tempo.
+                            # shorter than 1/16th of a quarter note in overall tempo.
                             # lengthen note to last the whole frame instead of not registering it
                             self.logger.warn(f"note {note} at frame {frame} goes on and off "
                                              f"during same frame. Increasing note duration "

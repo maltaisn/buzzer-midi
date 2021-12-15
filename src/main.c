@@ -33,7 +33,7 @@ int main(void) {
 
         // play all notes
         while (music_loop(&music_state)) {
-            // wait for roughly 1/32nd of a beat, with adjustment
+            // wait for roughly 1/16th of a beat, with adjustment
             uint8_t delay = music_state.tempo + TEMPO_ADJUST;
             while (delay > 0) {
                 _delay_us(256);

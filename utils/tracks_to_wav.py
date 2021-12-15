@@ -71,7 +71,7 @@ def _go_to_next_note(states: List[TrackState]) -> None:
                     # calculate note frequency as if it was produced by a timer.
                     # / 2 since timer interrupt is called twice per note period.
                     timer_count = round(track.spec.timer_period / get_note_freq(note.note) / 2)
-                    note_freq = track.spec.timer_period / timer_count / 2
+                    note_freq = track.spec.timer_period / timer_count
                     state.note_max_phase = SAMPLE_RATE / note_freq
                 state.current_idx += 1
                 state.level = 0
@@ -81,7 +81,7 @@ def _go_to_next_note(states: List[TrackState]) -> None:
 
 def _generate_frames_for_state(frames: np.ndarray, i: int, levels: np.ndarray,
                                frames_count: int, states: List[TrackState]) -> None:
-    # generate frames for current 1/32nd of a beat.
+    # generate frames for current 1/16th of a beat.
     active_states = [state for state in states
                      if not state.done and state.current_note.note != BuzzerNote.NONE]
     for j in range(frames_count):
@@ -99,7 +99,7 @@ def _generate_frames_for_state(frames: np.ndarray, i: int, levels: np.ndarray,
 
 def _generate_frames_for_state_pwm(frames: np.ndarray, i: int,
                                    frames_count: int, states: List[TrackState]) -> None:
-    # generate frames for current 1/32nd of a beat, in PWM.
+    # generate frames for current 1/16th of a beat, in PWM.
     active_states = [state for state in states
                      if not state.done and state.current_note.note != BuzzerNote.NONE]
     level_norm = PWM_PERIOD / len(states)
@@ -138,18 +138,18 @@ def create_wav_file(music: BuzzerMusic, filename: str,
             levels[i] = round(((SAMPLE_MAX / (levels_count - 1)) * i) / level_step) * level_step
 
     states = [TrackState(track) for track in tracks]
-    frames_per_32nd = round(sample_rate / BuzzerNote.TIMEFRAME_RESOLUTION * beat_duration)
-    frame_rate_actual = round(frames_per_32nd * BuzzerNote.TIMEFRAME_RESOLUTION / beat_duration)
+    frames_per_quantum = round(sample_rate / BuzzerNote.TIMEFRAME_RESOLUTION * beat_duration)
+    frame_rate_actual = round(frames_per_quantum * BuzzerNote.TIMEFRAME_RESOLUTION / beat_duration)
     max_notes = max((sum(((note.duration + 1) for note in track.notes)) for track in tracks))
-    frames = np.zeros(max_notes * frames_per_32nd, dtype=np.uint8)
+    frames = np.zeros(max_notes * frames_per_quantum, dtype=np.uint8)
     i = 0
     for k in range(max_notes):
         _go_to_next_note(states)
         if sample_width == 1:
-            _generate_frames_for_state_pwm(frames, i, frames_per_32nd, states)
+            _generate_frames_for_state_pwm(frames, i, frames_per_quantum, states)
         else:
-            _generate_frames_for_state(frames, i, levels, frames_per_32nd, states)
-        i += frames_per_32nd
+            _generate_frames_for_state(frames, i, levels, frames_per_quantum, states)
+        i += frames_per_quantum
         if show_progress:
             print(f"Generating WAV file {(k + 1) / max_notes * 100:.0f}%\r", end="")
     if show_progress:

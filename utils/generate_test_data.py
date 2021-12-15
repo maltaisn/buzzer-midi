@@ -20,20 +20,14 @@
 import random
 from typing import List, Iterable
 
-from midi_convert import write_c_header
+from midi_convert import write_c_header, parse_channels_spec
 from music_data import BuzzerTrack, BuzzerMusic, BuzzerNote, ChannelSpec
 
 # test data file name
 filename = "../include/music_data.h"
 
-channels_spec = [
-    ChannelSpec(range(11, 62)),
-    ChannelSpec(range(11, 62)),
-    ChannelSpec(range(0, 73)),
-    ChannelSpec(range(0, 73)),
-    ChannelSpec(range(23, 73)),
-    ChannelSpec(range(23, 73)),
-]
+channels_spec = parse_channels_spec("atmega3208")
+
 
 def add_pause(tracks: List[BuzzerTrack], duration: int) -> None:
     for i in range(duration):
@@ -42,7 +36,7 @@ def add_pause(tracks: List[BuzzerTrack], duration: int) -> None:
 
 
 def play_note_on_tracks(tracks: List[BuzzerTrack], nums: Iterable[int],
-                        note: int = 24, duration: int = 128) -> None:
+                        note: int = 24, duration: int = 64) -> None:
     """play a note on tracks by number, for a duration, while other tracks are silent."""
     for track in tracks:
         for j in range(duration):
@@ -50,46 +44,44 @@ def play_note_on_tracks(tracks: List[BuzzerTrack], nums: Iterable[int],
 
 
 def main() -> None:
-    music = BuzzerMusic(60)  # 120 BPM
+    music = BuzzerMusic(round(14684.4 / 120) - 1)  # 120 BPM
     tracks = [BuzzerTrack(i, spec) for i, spec in enumerate(channels_spec)]
     music.tracks = tracks
 
-    # play_note_on_tracks(tracks, [0], duration=32768)
-
     # test each buzzer separatedly
-    add_pause(tracks, 32)
+    add_pause(tracks, 16)
     play_note_on_tracks(tracks, [0, 1])
-    add_pause(tracks, 32)
+    add_pause(tracks, 16)
     play_note_on_tracks(tracks, [2, 3])
-    add_pause(tracks, 32)
+    add_pause(tracks, 16)
     play_note_on_tracks(tracks, [4, 5])
 
     # test all buzzers A/B channels
-    add_pause(tracks, 32)
+    add_pause(tracks, 16)
     play_note_on_tracks(tracks, [0, 2, 4])
-    add_pause(tracks, 32)
+    add_pause(tracks, 16)
     play_note_on_tracks(tracks, [1, 3, 5])
 
     # play all buzzers at once a few times
-    add_pause(tracks, 32)
+    add_pause(tracks, 16)
     play_note_on_tracks(tracks, [0, 1, 2, 3, 4, 5])
 
-    # play 32nd second notes over full range on each buzzer
-    add_pause(tracks, 32)
+    # play 1/32th notes over full range on each buzzer
+    add_pause(tracks, 16)
     for i, track in enumerate(tracks):
         for bnote in track.spec.note_range:
-            play_note_on_tracks(tracks, [i], note=bnote, duration=8)
+            play_note_on_tracks(tracks, [i], note=bnote, duration=4)
 
     # quick notes on buzzer
-    add_pause(tracks, 16)
+    add_pause(tracks, 8)
     for i in range(len(tracks)):
-        add_pause(tracks, 16)
+        add_pause(tracks, 8)
         for _ in range(16):
-            play_note_on_tracks(tracks, [1], note=60 - 6 * i, duration=4)
+            play_note_on_tracks(tracks, [1], note=60 - 6 * i, duration=2)
             add_pause(tracks, 1)
 
     # random notes, random buzzers
-    add_pause(tracks, 32)
+    add_pause(tracks, 16)
     for _ in range(10):
         nums = set(random.choices(range(6), k=random.randint(1, 6)))
         for i in range(16):
