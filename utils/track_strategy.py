@@ -45,13 +45,13 @@ class TrackStrategy(ABC):
         midi_track_assignment: List[Optional[int]] = [None] * len(channels_spec)
 
         def filter_tracks(track: BuzzerTrack):
-            midi_asg = midi_track_assignment[track.number]
+            midi_asg = midi_track_assignment[track.channel]
             return (bnote in track.spec.note_range and
                     (self.merge_midi_tracks or midi_asg is None or midi_track == midi_asg))
 
         for i in range(len(frames_notes[0])):
             # unassigned tracks for current frame
-            unassigned_tracks = {track.number: track for track in tracks}
+            unassigned_tracks = {track.channel: track for track in tracks}
 
             for midi_track, midi_track_notes in enumerate(frames_notes):
                 for note in midi_track_notes[i]:
@@ -108,7 +108,7 @@ class ClosestTrackStrategy(TrackStrategy):
     def assign_track(self, tracks: List[BuzzerTrack], bnote: int) -> Optional[int]:
         if len(tracks[0].notes) == 0:
             # no notes assigned yet, fallback on first fit.
-            return tracks[0].number
+            return tracks[0].channel
 
         # find track playing note closest to this note
         closest_track: Optional[int] = None
@@ -121,7 +121,7 @@ class ClosestTrackStrategy(TrackStrategy):
             note_dist = math.inf if curr_note == BuzzerNote.NONE else abs(bnote - curr_note)
             if closest_track is None or note_dist < min_note_dist or \
                     (note_dist == min_note_dist and len(track.notes) > closest_count):
-                closest_track = track.number
+                closest_track = track.channel
                 closest_count = len(track.notes)
                 min_note_dist = note_dist
 
@@ -147,7 +147,7 @@ class ClosestAverageTrackStrategy(TrackStrategy):
         closest_track: Optional[int] = None
         if len(tracks[0].notes) == 0:
             # no notes assigned yet, fallback on first fit.
-            closest_track = tracks[0].number
+            closest_track = tracks[0].channel
         else:
             # find track playing average note closest to this note
             min_note_dist = 0
@@ -156,7 +156,7 @@ class ClosestAverageTrackStrategy(TrackStrategy):
                 note_dist = math.inf if note_count == 0 else \
                     abs(bnote - self._tracks_sum[i] / note_count)
                 if closest_track is None or note_dist < min_note_dist:
-                    closest_track = track.number
+                    closest_track = track.channel
                     min_note_dist = note_dist
 
         if closest_track is not None:
@@ -179,7 +179,7 @@ class FirstFitTrackStrategy(TrackStrategy):
     def assign_track(self, tracks: List[BuzzerTrack], bnote: int) -> Optional[int]:
         if self.use_preferred:
             tracks.sort(key=lambda t: len(t.spec.note_range))
-        return tracks[0].number
+        return tracks[0].channel
 
 
 class RandomTrackStrategy(TrackStrategy):
@@ -194,7 +194,7 @@ class RandomTrackStrategy(TrackStrategy):
         tracks.sort(key=lambda t: len(t.spec.note_range))
         smallest_range = tracks[0].spec.note_range
         tracks = [t for t in tracks if t.spec.note_range == smallest_range]
-        return random.choice(tracks).number
+        return random.choice(tracks).channel
 
 
 class AutoTrackStrategy(TrackStrategy):

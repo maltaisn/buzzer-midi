@@ -124,7 +124,7 @@ def create_wav_file(music: BuzzerMusic, filename: str,
     if not (0 < sample_width <= 8):
         raise RuntimeError("sample width out of bounds")
 
-    beat_duration = music.tempo * 0.008192
+    beat_duration = music.tempo * 256e-6 * BuzzerNote.TIMEFRAME_RESOLUTION
     sample_rate = PWM_SAMPLE_RATE if sample_width == 1 else SAMPLE_RATE
 
     levels = None

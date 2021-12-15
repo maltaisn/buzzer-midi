@@ -22,8 +22,8 @@
 #include <defs.h>
 
 #define TRACK_POS_END ((_FLASH uint8_t*) 0)
-#define TRACK_END 0xfe
-#define NO_NOTE 0xff
+#define TRACK_END 0x7e
+#define NO_NOTE 0x7f
 
 typedef struct {
     // Current track position in music data array

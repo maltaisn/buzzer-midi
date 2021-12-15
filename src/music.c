@@ -23,7 +23,12 @@
 static inline void track_seek_note(track_t *track) {
     if (track->track_pos != TRACK_POS_END) {
         track->note = track->track_pos[0];
-        if (track->note == TRACK_END) {
+        if (track->note & 0x80) {
+            // special case for single byte encoding of no note with duration < 128.
+            track->note_duration = track->note & 0x7f;
+            track->note = NO_NOTE;
+            ++track->track_pos;
+        } else if (track->note == TRACK_END) {
             // track ended, stop note.
             track->note = NO_NOTE;
             track->note_duration = 0;

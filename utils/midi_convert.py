@@ -175,7 +175,9 @@ def write_c_header(file: TextIO, data: bytes, arr_name: str):
             file.write("\n")
         else:
             file.write(" ")
-    file.write("\n};")
+    if len(data) % 12 != 0:
+        file.write("\n")
+    file.write("};")
 
 
 class OutputFormat(Enum):
@@ -233,8 +235,8 @@ def parse_channels_spec(spec: str) -> List[ChannelSpec]:
 def create_config(args: argparse.Namespace) -> Config:
     """Validate input arguments and create typed configuration object."""
     input_path = Path(args.input_file)
-    if not input_path.is_file():
-        raise ValueError("invalid input file")
+    if not input_path.exists() or not input_path.is_file():
+        raise ValueError("input file doesn't exist")
 
     # logging
     log_level = next((e for e in LogLevel if e.name.lower() == args.log_level))
@@ -321,21 +323,16 @@ class MidiConverter:
         frames_notes = self._apply_time_range(frames_notes, tempo, midi_duration_sec)
 
         # do some validation before applying track assignment strategy
-        max_notes_at_once = self._count_max_notes_at_once(frames_notes)
         channels_count = len(config.channels_spec)
-        if max_notes_at_once > channels_count:
-            self._abort(f"can't convert, up to {max_notes_at_once} notes played at once "
-                        f"({channels_count} channels available)")
-        else:
-            self.logger.info(f"file has at most {max_notes_at_once} notes played at once")
+        self._check_max_notes_at_once(frames_notes, channels_count, tempo)
         self._verify_note_range(frames_notes, tempo)
 
         # create buzzer music from frames notes
         # buzzer music will use average tempo since multiple tempos aren't supported
         self.logger.info(f"using '{config.strategy_name}' strategy")
         buzzer_music = self._create_buzzer_music(tempo, frames_notes)
-        track_nums = (str(t.number) for t in buzzer_music.tracks)
-        self.logger.info(f"buzzer music uses tracks {', '.join(track_nums)}")
+        channels_nums = (str(t.channel) for t in buzzer_music.tracks)
+        self.logger.info(f"buzzer music uses channels {', '.join(channels_nums)}")
 
         # write output data
         out_size = self._write_output_file(buzzer_music)
@@ -505,10 +502,22 @@ class MidiConverter:
             return [notes[frame_first:frame_last] for notes in frames_notes]
         return frames_notes
 
-    def _count_max_notes_at_once(self, frames_notes: FramesNotes) -> int:
-        """Count maximum number of notes played at once in all tracks combined."""
+    def _check_max_notes_at_once(self, frames_notes: FramesNotes,
+                                 channels_count: int, tempo: float) -> None:
+        """Check if maximum number of notes played at once in all tracks combined is
+        less or equal to the number of channels."""
         nframes = len(frames_notes[0])
-        return max(sum(len(notes[i]) for notes in frames_notes) for i in range(nframes))
+        notes_per_frame = [sum(len(notes[i]) for notes in frames_notes) for i in range(nframes)]
+        max_notes = max(notes_per_frame)
+        if max_notes > channels_count:
+            # more notes played at once than channels available.
+            # give some info on time of occurence in file.
+            time = (notes_per_frame.index(max_notes) /
+                    (BuzzerNote.TIMEFRAME_RESOLUTION * 1e6) * tempo)
+            self._abort(f"can't convert, up to {max_notes} notes played at once "
+                        f"(at around {time:.1f} s, only {channels_count} channels available)")
+        else:
+            self.logger.info(f"file has at most {max_notes} notes played at once")
 
     def _verify_note_range(self, frames_notes: FramesNotes, tempo: float) -> None:
         """Check that no note in file exceeds the largest timer range and

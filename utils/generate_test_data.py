@@ -46,7 +46,7 @@ def play_note_on_tracks(tracks: List[BuzzerTrack], nums: Iterable[int],
     """play a note on tracks by number, for a duration, while other tracks are silent."""
     for track in tracks:
         for j in range(duration):
-            track.add_note(note if track.number in nums else BuzzerNote.NONE)
+            track.add_note(note if track.channel in nums else BuzzerNote.NONE)
 
 
 def main() -> None:
@@ -95,7 +95,7 @@ def main() -> None:
         for i in range(16):
             for i, track in enumerate(tracks):
                 note = random.choice(track.spec.note_range)
-                track.add_note(note if track.number in nums else BuzzerNote.NONE)
+                track.add_note(note if track.channel in nums else BuzzerNote.NONE)
 
     # finalize tracks and encode
     for track in tracks:

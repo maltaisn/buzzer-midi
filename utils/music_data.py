@@ -36,7 +36,7 @@ class BuzzerNote:
     # duration, 0-MAX_DURATION (0 being 1/32nd of a beat)
     duration: int
 
-    NONE = 0xff
+    NONE = 0x7f
     MAX_DURATION = 0x7fff
     MAX_NOTE = 83  # B8
 
@@ -45,14 +45,18 @@ class BuzzerNote:
 
     def encode(self) -> bytearray:
         b = bytearray()
-        b.append(self.note)
-        if self.duration >= 0x8000:
-            raise ValueError("Note duration cannot be encoded")
-        elif self.duration >= 0x80:
-            b.append((self.duration & 0x7f) | 0x80)
-            b.append(self.duration >> 7)
+        if self.note == BuzzerNote.NONE and self.duration < 128:
+            # special single byte encoding for no note with duration < 128
+            b.append(self.duration | 0x80)
         else:
-            b.append(self.duration)
+            b.append(self.note)
+            if self.duration >= 0x8000:
+                raise ValueError("Note duration cannot be encoded")
+            elif self.duration >= 0x80:
+                b.append((self.duration & 0x7f) | 0x80)
+                b.append(self.duration >> 7)
+            else:
+                b.append(self.duration)
         return b
 
     @staticmethod
@@ -63,15 +67,17 @@ class BuzzerNote:
 
 @dataclass
 class BuzzerTrack:
-    # track number, 0 to MAX_TRACK-1
-    number: int
+    # channel number
+    channel: int
     # track note range
     spec: ChannelSpec
     # track notes
     notes: List[BuzzerNote]
 
+    TRACK_END = 0x7e
+
     def __init__(self, number: int, spec: ChannelSpec):
-        self.number = number
+        self.channel = number
         self.spec = spec
         self.notes = []
 
@@ -94,11 +100,11 @@ class BuzzerTrack:
 
     def encode(self) -> bytearray:
         b = bytearray()
-        b.append(self.number)
+        b.append(self.channel)
         b += b"\x00\x00"
         for note in self.notes:
             b += note.encode()
-        b += b'\xfe'  # end byte
+        b.append(BuzzerTrack.TRACK_END)  # end byte
         if len(b) > 0xffff:
             raise RuntimeError(f"Track is too long to be encoded ({len(b)} bytes)")
         b[1:3] = len(b).to_bytes(2, "little", signed=False)
@@ -111,11 +117,11 @@ class BuzzerMusic:
     tracks: List[BuzzerTrack] = field(default_factory=list)
 
     # encodeable tempo bounds
-    TEMPO_MIN = round(256 * 8192)
-    TEMPO_MAX = round(1 * 8192)
+    TEMPO_MIN = round(256 * 256 * BuzzerNote.TIMEFRAME_RESOLUTION)
+    TEMPO_MAX = round(1 * 256 * BuzzerNote.TIMEFRAME_RESOLUTION)
 
     def encode(self) -> bytearray:
-        if len(set(t.number for t in self.tracks)) != len(self.tracks):
+        if len(set(t.channel for t in self.tracks)) != len(self.tracks):
             raise RuntimeError("tracks must be unique")
 
         b = bytearray()
@@ -132,4 +138,4 @@ class BuzzerMusic:
 
     @staticmethod
     def encode_beat_us_tempo(us: float) -> int:
-        return round(us / 8192) - 1
+        return round(us / (256 * BuzzerNote.TIMEFRAME_RESOLUTION)) - 1

@@ -1,8 +1,11 @@
+# target should be specified when using Makefile using:
+# make TARGET=<target>
 ifeq ($(TARGET),)
     $(warning No MCU target set, using atmega328p by default)
     TARGET := atmega328p
 endif
 
+# target-specific settings
 ifeq ($(TARGET),atmega328p)
     MCU := atmega328p
     F_CPU := 16000000
@@ -18,7 +21,10 @@ BUILD_DIR := build
 SRC_DIR := src
 INCLUDE_DIR := include
 BUILD_TARGET := main
+MAIN_TARGET := $(BUILD_DIR)/$(BUILD_TARGET)
 
+# ATmega toolchain directory for targeting newer parts.
+# It can be downloaded as atpack on Microchip website.
 ATMEGA_TOOLCHAIN_DIR := /opt/avr/Atmel.ATmega_DFP
 
 CC := avr-gcc
@@ -34,7 +40,7 @@ AVRDUDE_MCU = $(MCU)
 AVRDUDE_PORT := /dev/ttyUSB0
 AVRDUDE_BAUD := 57600
 AVRDUDE_FLAGS += -v -p $(AVRDUDE_MCU) -P $(AVRDUDE_PORT) -b $(AVRDUDE_BAUD)
-AVRDUDE_FLASH := -U flash:w:build/main.hex
+AVRDUDE_FLASH := -U flash:w:$(MAIN_TARGET).hex
 
 DEPFLAGS = -MT $@ -MMD -MP -MF $(BUILD_DIR)/$*.d
 
@@ -42,7 +48,6 @@ CSOURCES := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/*/*.c)
 ASOURCES := $(wildcard $(SRC_DIR)/*.S) $(wildcard $(SRC_DIR)/*/*.S)
 OBJECTS := $(addprefix $(BUILD_DIR)/, $(CSOURCES:.c=.o)) $(addprefix $(BUILD_DIR)/, $(ASOURCES:.S=.o))
 DEPS := $(addprefix $(BUILD_DIR)/, $(CSOURCES:.c=.d)) $(addprefix $(BUILD_DIR)/, $(ASOURCES:.S=.d))
-MAIN_TARGET := $(BUILD_DIR)/$(BUILD_TARGET)
 
 -include $(DEPS)
 
