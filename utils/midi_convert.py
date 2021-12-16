@@ -36,7 +36,7 @@ from mido import MidiFile
 from logger import LogLevel, Logger
 from music_data import BuzzerMusic, BuzzerNote, ChannelSpec
 from track_strategy import AutoTrackStrategy, OptimizeSizeTrackStrategy, \
-    OptimizeBuzzerTrackStrategy, ClosestTrackStrategy, ClosestAverageTrackStrategy, \
+    OptimizeChannelsTrackStrategy, ClosestTrackStrategy, ClosestAverageTrackStrategy, \
     FirstFitTrackStrategy, RandomTrackStrategy, FramesNotes, TrackStrategy, TrackStrategyFailError
 from tracks_to_wav import create_wav_file
 
@@ -54,7 +54,7 @@ NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 TRACK_STRATEGIES: Dict[str, TrackStrategy] = {
     "auto": AutoTrackStrategy(),
     "opt_size": OptimizeSizeTrackStrategy(),
-    "opt_buzzer": OptimizeBuzzerTrackStrategy(),
+    "opt_channel": OptimizeChannelsTrackStrategy(),
     "closest": ClosestTrackStrategy(),
     "closest_avg": ClosestAverageTrackStrategy(),
     "first_fit_pref": FirstFitTrackStrategy(True),
@@ -84,7 +84,7 @@ parser.add_argument("-s", "--strategy", type=str,
                     "Track note assignment strategy:\n"
                     "- auto: try strategies in order and use first that succeeds (default)\n"
                     "- opt_size: try all strategies and choose the smallest output size\n"
-                    "- opt_buzzer: try all strategies and choose the smallest number of channels\n"
+                    "- opt_channel: try all strategies and choose the smallest number of channels\n"
                     "- closest: assign notes to track currently playing closest note\n"
                     "- closest_avg: assign notes to track with the closest average note\n"
                     "- first_fit: assign note to first track that can play it\n"

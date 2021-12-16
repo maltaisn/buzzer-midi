@@ -251,10 +251,10 @@ class OptimizeSizeTrackStrategy(TrackStrategy):
         return best_tracks
 
 
-class OptimizeBuzzerTrackStrategy(TrackStrategy):
+class OptimizeChannelsTrackStrategy(TrackStrategy):
     """
-    try all strategies and use the one that gives the smallest number of buzzers used.
-    if same number of buzzers, compare size
+    try all strategies and use the one that gives the smallest number of channels used.
+    if same number of channels, compare size
     """
 
     def create_tracks(self, logger: Logger, channels_spec: List[ChannelSpec],
@@ -278,7 +278,7 @@ class OptimizeBuzzerTrackStrategy(TrackStrategy):
                     best_tracks = tracks
                     best_track_strategy = name
                     best_size = size
-                logger.info(f"'{name}' strategy used {len(tracks)} buzzers ({size} bytes)")
+                logger.info(f"'{name}' strategy used {len(tracks)} channels ({size} bytes)")
         if not best_tracks:
             raise TrackStrategyFailError
         logger.info(f"'{best_track_strategy}' strategy selected")

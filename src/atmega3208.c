@@ -27,7 +27,7 @@
 // The TCB timers are used to toggle that state and update the PWM duty cycle
 // during their interrupt.
 //
-// The buzzer acts as a low-pass filter so the 50 kHz PWM creates something
+// The buzzer acts as a low-pass filter so the 200 kHz PWM creates something
 // ressembling a 2-bit DAC, with 4 levels of output. The output level is the
 // sum of all channel levels at the current time.
 //
@@ -100,7 +100,7 @@ void impl_setup(void) {
     TCA0.SPLIT.HPER = PWM_LEVELS[sizeof PWM_LEVELS - 1];
     TCA0.SPLIT.HCMP0 = 0;
     TCA0.SPLIT.CTRLB = TCA_SPLIT_HCMP0EN_bm;
-    TCA0.SPLIT.CTRLA = TCA_SPLIT_CLKSEL_DIV8_gc | TCA_SPLIT_ENABLE_bm;
+    TCA0.SPLIT.CTRLA = TCA_SPLIT_CLKSEL_DIV2_gc | TCA_SPLIT_ENABLE_bm;
 
     // Timers B: used for each channel. prescaler = 2, periodic interrupt mode.
     TCB0.CTRLA = TCB_CLKSEL_CLKDIV2_gc;
